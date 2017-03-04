@@ -23,6 +23,11 @@ connect(Host, Port, Listener) ->
 			connect(Host, Port, Listener)
 	end.
 
+close(Socket, #state{host = Host, port = Port, listener = Listener}) ->
+	gen_tcp:close(Socket),
+	gen_server:stop(?MODULE),
+	snatch:start_link(Host, Port, Listener).
+
 handle_call({send, Data}, _From, #state{state = connected, socket = Socket} = S) ->
     Result = gen_tcp:send(Socket, Data),
     {reply, Result, S}.
@@ -35,13 +40,18 @@ handle_info({tcp, _Socket, Data}, #state{listener = Listener} = S) ->
 	gen_server:cast(Listener, {received, Data}),
 	{noreply, S};
 
-handle_info({tcp_closed, _Socket}, #state{listener = Listener} = S) ->
+handle_info({tcp_closed, Socket}, #state{listener = Listener} = S) ->
 	gen_server:cast(Listener, {closed}),
+	close(Socket, S),
 	{noreply, S};
 
-handle_info({tcp_error, _Socket}, #state{listener = Listener} = S) ->
+handle_info({tcp_error, Socket}, #state{listener = Listener} = S) ->
 	gen_server:cast(Listener, {closed}),
+	close(Socket, S),
 	{noreply, S};
+
+handle_info({close}, #state{socket = Socket} = S) ->
+	close(Socket, S);
 
 handle_info(_Info, S) ->
     {noreply, S}.

@@ -22,26 +22,42 @@ handle_call({send, _Data} = Request, _From, #state{state = binded, claws = Claws
     {reply, Result, S}.
 
 handle_cast({connected, Claws}, #state{domain = Domain} = S) ->
-    io:format("Connected: ~p ~n", [Claws]),
+    io:format("Connected: ~p ~n", [Claws]),    
+    Stream = fxml_stream:new(whereis(?MODULE)),
     send(Claws, ?INIT(Domain)),
-    {noreply, S#state{claws = Claws, state = connected}};
+    {noreply, S#state{claws = Claws, state = connected, stream = Stream}};
 
-handle_cast({received, _Data}, #state{user = User, password = Password, state = connected, claws = Claws} = S) ->
+handle_cast({received, Data}, #state{user = User, password = Password, state = connected, claws = Claws, stream = Stream} = S) ->
+    NewStream = fxml_stream:parse(Stream, Data),
     send(Claws, ?AUTH(User, Password)),
-    {noreply, S#state{claws = Claws, state = auth}};
+    {noreply, S#state{claws = Claws, state = auth, stream = NewStream}};
 
-handle_cast({received, _Data}, #state{state = auth, listener = Listener} = S) ->
+handle_cast({received, Data}, #state{state = auth, listener = Listener, stream = Stream} = S) ->
+    NewStream = fxml_stream:parse(Stream, Data),
     forward(Listener, {binded, ?MODULE}),
-    {noreply, S#state{state = binded}};
+    {noreply, S#state{state = binded, stream = NewStream}};
 
-handle_cast({received, Data}, #state{state = binded, listener = Listener} = S) ->
-    forward(Listener, {received, Data}),
-    {noreply, S};
+handle_cast({received, Data}, #state{state = binded, stream = Stream} = S) ->
+    % forward(Listener, {received, Data}),
+    NewStream = fxml_stream:parse(Stream, Data),
+    {noreply, S#state{stream = NewStream}};
 
 handle_cast(_Cast, S) ->
+    io:format("Cast: ~p  ~n", [_Cast]),
     {noreply, S}.
 
+handle_info({'$gen_event', {xmlstreamelement, Packet}}, #state{listener = Listener, state = binded} = S) ->
+    forward(Listener, {received, Packet}),
+    {noreply, S};
+
+handle_info({'$gen_event', {xmlstreamend, Packet}}, #state{listener = Listener, claws = Claws, stream = Stream} = S) ->
+    fxml_stream:close(Stream),
+    forward(Claws, {close}),
+    forward(Listener, {closed, Packet}),
+    {noreply, S};
+
 handle_info(_Info, S) ->
+    io:format("Info: ~p  ~n", [_Info]),
     {noreply, S}.
 
 forward(Listener, Data) when is_pid(Listener) ->
