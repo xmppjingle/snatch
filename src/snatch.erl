@@ -7,7 +7,7 @@
 -define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>snatch</resource></query></iq>">>).
 
 -export([start_link/4]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -export([forward/2, send/1]).
 
@@ -38,9 +38,12 @@ handle_cast({received, Data}, #state{state = auth, listener = Listener, stream =
     {noreply, S#state{state = binded, stream = NewStream}};
 
 handle_cast({received, Data}, #state{state = binded, stream = Stream} = S) ->
-    % forward(Listener, {received, Data}),
     NewStream = fxml_stream:parse(Stream, Data),
     {noreply, S#state{stream = NewStream}};
+
+handle_cast({closed}, #state{listener = Listener} = S) ->
+    forward(Listener, {closed, socket}),
+    {noreply, S#state{stream = undefined, state = undefined}};
 
 handle_cast(_Cast, S) ->
     io:format("Cast: ~p  ~n", [_Cast]),
@@ -59,6 +62,10 @@ handle_info({'$gen_event', {xmlstreamend, Packet}}, #state{listener = Listener, 
 handle_info(_Info, S) ->
     io:format("Info: ~p  ~n", [_Info]),
     {noreply, S}.
+
+terminate(_, _) ->
+    io:format("Terminating...~n", []),
+    ok.
 
 forward(Listener, Data) when is_pid(Listener) ->
     io:format("Forward: ~p  -> ~p ~n", [Listener, Data]),
