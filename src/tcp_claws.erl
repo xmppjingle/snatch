@@ -26,7 +26,7 @@ connect(Host, Port, Listener) ->
 close(Socket, #state{host = Host, port = Port, listener = Listener}) ->
 	gen_tcp:close(Socket),
 	gen_server:stop(?MODULE),
-	snatch:start_link(Host, Port, Listener).
+	tcp_claws:start_link(Host, Port, Listener).
 
 handle_call({send, Data}, _From, #state{state = connected, socket = Socket} = S) ->
     Result = gen_tcp:send(Socket, Data),
