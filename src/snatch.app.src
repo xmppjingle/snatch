@@ -11,5 +11,6 @@
                   stdlib,
                   xmpp
                  ]},
-  {env, []}
+  {env, []},
+  {files, ["src/", "include/", "rebar.config"]}
  ]}.

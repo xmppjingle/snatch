@@ -4,7 +4,7 @@
 -record(state, {user, domain, password, claws = undefined, stream=undefined, state=undefined, listener = undefined}).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
--define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>globe</resource></query></iq>">>).
+-define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>snatch</resource></query></iq>">>).
 
 -export([start_link/4]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2]).
@@ -34,7 +34,7 @@ handle_cast({received, _Data}, #state{state = auth, listener = Listener} = S) ->
     forward(Listener, {binded, ?MODULE}),
     {noreply, S#state{state = binded}};
 
-handle_cast({received, Data}, #state{state = auth, listener = Listener} = S) ->
+handle_cast({received, Data}, #state{state = binded, listener = Listener} = S) ->
     forward(Listener, {received, Data}),
     {noreply, S};
 
