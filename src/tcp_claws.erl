@@ -16,7 +16,7 @@ init([Host, Port, Listener]) ->
 connect(Host, Port, Listener) ->
 	case gen_tcp:connect(Host, Port, [binary, {active, true}]) of
 		{ok, NewSocket} ->
-			spawn(fun() -> timer:apply_after(200, snatch, forward, [Listener, {connected, ?MODULE}]) end),
+			timer:apply_after(1000, snatch, forward, [Listener, {connected, ?MODULE}]),
 			{ok, #state{socket=NewSocket, state = connected, listener = Listener}};
 		_ -> 
 			timer:sleep(3000),
