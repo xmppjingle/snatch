@@ -7,7 +7,7 @@
 -define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>snatch</resource></query></iq>">>).
 
 -export([start_link/4]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([forward/2, send/1]).
 
@@ -79,3 +79,6 @@ send(Data) ->
 
 send(To, Data) ->
     gen_server:call(To, {send, Data}).
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
