@@ -1,104 +1,95 @@
 -module(xmpp_claws).
--behaviour(gen_server).
+-behaviour(gen_statem).
 -compile(export_all).
 
--record(state, {user, domain, password, host, port, socket=undefined, state=undefined, listener, stream}).
+-record(data, {user, domain, password, host, port, socket=undefined, listener, stream}).
 
 -export([start_link/6]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([terminate/3,code_change/4,init/1,callback_mode/0]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
 -define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>snatch</resource></query></iq>">>).
 
 -define(INIT_PARAMS, [Host, Port, User, Domain, Password, Listener]).
 
+name() -> xmpp_claws.
+
 start_link(Host, Port, User, Domain, Password, Listener) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, ?INIT_PARAMS, []).
+    gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, [{debug,[trace,log,statistics,debug]}]).
 
 init(?INIT_PARAMS) ->
-	connect(#state{host = Host, port = Port, user = User, domain = Domain, password = Password, listener = Listener}).
+	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, listener = Listener}}.
 
-connect(#state{host = Host, port = Port} = S) ->
+callback_mode() -> state_functions.
+
+terminate(_, _, _) ->
+	io:format("Terminating...~n", []), void.
+
+code_change(_OldVsn, State, Data, _Extra) ->
+    {ok, State, Data}.
+
+%% API
+
+connect() -> 
+	gen_statem:cast(name(), connect).
+
+disconnect() ->
+	gen_statem:cast(name(), disconnect).
+
+%% States
+
+disconnected(Type, connect, #data{host = Host, port = Port} = Data) when Type == cast; Type == state_timeout ->
 	io:format("Connecting...~n", []),
 	case gen_tcp:connect(Host, Port, [binary, {active, true}]) of
 		{ok, NewSocket} ->
-			?MODULE ! {connected, ?MODULE},
 			io:format("Connected.~n", []),
-			{ok, S#state{socket=NewSocket, state = connected}};
+			{next_state, connected, Data#data{socket = NewSocket}, [{next_event, cast, init_stream}]};
 		_Error -> 
 			io:format("Connecting Error [~p:~p]: ~p~n", [Host, Port, _Error]),
-			timer:sleep(3000),
-			connect(S)
-	end.
+			{next_state, retrying, Data, [{next_event, cast, connect}]}
+	end;
 
-close(Socket, Reason, #state{listener = Listener, state = State} = S) when State /= undefined ->
-	io:format("Restarting...~n", []),
-	gen_tcp:close(Socket),
-	snatch:forward(Listener, {closed, Reason}),
-	connect(S);
+disconnected(cast, disconnect, _Data) ->
+	{keep_state_and_data, []}.
 
-close(_, _, S) -> {ok, S}.
+retrying(cast, connect, Data) ->
+	{next_state, disconnected, Data, [{next_event, state_timeout, 3000, connect}]}.
 
-handle_call(_, _, S) ->
-    {reply, ok, S}.	
+connected(cast, init_stream, #data{} = Data) ->
+	Stream = fxml_stream:new(whereis(name())),
+	{next_state, stream_init, Data#data{stream = Stream}, [{next_event, cast, init}]}.
 
-handle_cast({received, Data}, #state{state = connected, user = User, password = Password, stream = Stream} = S) ->
-    NewStream = fxml_stream:parse(Stream, Data),
-    gen_server:cast(?MODULE, {send, ?AUTH(User, Password)}),
-    {noreply, S#state{state = auth, stream = NewStream}};
-	
-handle_cast({received, Data}, #state{state = auth, listener = Listener, stream = Stream} = S) ->
-    NewStream = fxml_stream:parse(Stream, Data),
-    snatch:forward(Listener, {binded}),
-    {noreply, S#state{state = binded, stream = NewStream}};
+stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
+	gen_tcp:send(Socket, ?INIT(Domain)),
+	{keep_state, Data, []};
 
-handle_cast({received, Data}, #state{state = binded, stream = Stream, listener = Listener} = S) ->
-    NewStream = fxml_stream:parse(Stream, Data),
-    snatch:forward(Listener, {received, Data}),
-    {noreply, S#state{stream = NewStream}};
+stream_init(info, {tcp, _Socket, Packet}, #data{stream = Stream} = Data) ->	
+	NewStream = fxml_stream:parse(Stream, Packet),
+    {keep_state, Data#data{stream = NewStream}, []};
 
-handle_cast({send, Data}, #state{state = _State, socket = Socket} = S) ->
-	io:format("Sending TCP: ~p~n", [Data]),
-    gen_tcp:send(Socket, Data),
-    {noreply, S};
+stream_init(cast, {received, _Packet}, Data) ->	
+	{next_state, authenticate, Data, [{next_event, cast, auth}]}.
 
-handle_cast(_Cast, S) ->
-    {noreply, S}.
+authenticate(cast, auth, #data{user = User, password = Password, socket = Socket} = Data) ->
+	gen_tcp:send(Socket, ?AUTH(User, Password)),
+	{keep_state, Data, []};
 
-handle_info({tcp, _Socket, Data}, #state{} = S) ->
-	io:format("Received TCP: ~p ~n", [Data]),
-	gen_server:cast(?MODULE, {received, Data}),
-	{noreply, S};
+authenticate(cast, {received, _Packet}, Data) ->	
+	{next_state, binded, Data, []}.
 
-handle_info({connected, _PID}, #state{domain = Domain} = S) ->
-    io:format("Connected: ~p ~n", [_PID]),    
-    Stream = fxml_stream:new(whereis(?MODULE)),
-    gen_server:cast(?MODULE, {send, ?INIT(Domain)}),
-    {noreply, S#state{state = connected, stream = Stream}};
+binded(cast, {send, Packet}, #data{socket = Socket}) ->
+	gen_tcp:send(Socket, Packet),
+	{keep_state_and_data, []};
 
-handle_info({close, Reason}, #state{socket = Socket} = S) ->
-	{ok, State} = close(Socket, Reason, S),
-	{noreply, State};
+binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
+	io:format("Received Packet: ~p ~n", [Packet]),
+	snatch:forward(Listener, R).
 
-handle_info({'$gen_event', {xmlstreamelement, Packet}}, #state{listener = Listener, state = binded} = S) ->
-    snatch:forward(Listener, {received, Packet}),
-    {noreply, S};
-
-handle_info({'$gen_event', {xmlstreamend, _Packet}}, #state{stream = Stream} = S) ->
-    fxml_stream:close(Stream),
-    ?MODULE ! {close, stream},
-    {noreply, S};
-
-handle_info({Event, _Socket}, #state{state = State} = S) when State /= undefined, Event == tcp_close; Event == tcp_error ->
-    ?MODULE ! {close, socket},
-	{noreply, S#state{state = undefined}};
-
-handle_info(_Info, S) ->
-    {noreply, S}.
-
-terminate(_, _) ->
-	io:format("Terminating...~n", []),
-	ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+handle_event({info, _From}, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
+	NewStream = fxml_stream:parse(Stream, Packet),
+    {keep_state, Data#data{stream = NewStream}, []};
+handle_event({info, _From}, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
+    {keep_state, Data,[{next_event, cast, {received, Packet}}]};
+handle_event(cast, Content, State, Data) ->
+	spawn(name(), State, [cast, Content, Data]),
+    {keep_state_and_data, []}.
