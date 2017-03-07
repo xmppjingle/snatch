@@ -63,10 +63,6 @@ stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
 	gen_tcp:send(Socket, ?INIT(Domain)),
 	{keep_state, Data, []};
 
-stream_init(info, {tcp, _Socket, Packet}, #data{stream = Stream} = Data) ->	
-	NewStream = fxml_stream:parse(Stream, Packet),
-    {keep_state, Data#data{stream = NewStream}, []};
-
 stream_init(cast, {received, _Packet}, Data) ->	
 	{next_state, authenticate, Data, [{next_event, cast, auth}]}.
 
