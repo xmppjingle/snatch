@@ -15,7 +15,7 @@
 name() -> xmpp_claws.
 
 start_link(Host, Port, User, Domain, Password, Listener) ->
-    gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, [{debug,[trace,log,statistics,debug]}]).
+    gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, []).
 
 init(?INIT_PARAMS) ->
 	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, listener = Listener}}.
