@@ -33,23 +33,21 @@ init([JID]) ->
 
 create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	BareJID = snatch:to_bare(JID),
+	
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_IQ, type = ?DIRECT}),
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_PRESENCE, type = ?BROADCAST}),
 
-	#'queue.declare_ok'{queue = DirectQueue} = amqp_channel:call(Channel, #'queue.declare'{queue = JID}),
-	#'queue.declare_ok'{queue = AnyQueue} = amqp_channel:call(Channel, #'queue.declare'{queue = BareJID}),
-	#'queue.declare_ok'{queue = EventQueue} = amqp_channel:call(Channel, #'queue.declare'{queue = BareJID}),
+	{DirectQueue, _}= declare_bind_and_consume(Channel, <<"direct_queue">>, ?EXCHANGE_IQ, [JID], whereis(?MODULE)),
+	{AnyQueue, _}	= declare_bind_and_consume(Channel, <<"any_queue">>, ?EXCHANGE_IQ, [BareJID], whereis(?MODULE)),
+	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue">>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
 
-	#'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = DirectQueue, exchange = ?EXCHANGE_IQ, routing_key = JID}),
-	#'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = AnyQueue, exchange = ?EXCHANGE_IQ, routing_key = BareJID}),
-	#'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = EventQueue, exchange = ?EXCHANGE_PRESENCE, routing_key = JID}),
-	#'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = EventQueue, exchange = ?EXCHANGE_PRESENCE, routing_key = BareJID}),
-		
-	#'basic.consume_ok'{consumer_tag = _} = amqp_channel:subscribe(Channel, #'basic.consume'{queue = DirectQueue}, whereis(?MODULE)),
-	#'basic.consume_ok'{consumer_tag = _} = amqp_channel:subscribe(Channel, #'basic.consume'{queue = AnyQueue}, whereis(?MODULE)),
-	#'basic.consume_ok'{consumer_tag = _} = amqp_channel:subscribe(Channel, #'basic.consume'{queue = EventQueue}, whereis(?MODULE)),
-	
 	S#state{direct_queue = DirectQueue, any_queue = AnyQueue, event_queue = EventQueue}.
+
+declare_bind_and_consume(Channel, Name, Exchange, Routes, Listener) ->
+	#'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{queue = Name}),
+	[ #'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = Queue, exchange = Exchange, routing_key = R}) || R <- Routes],
+	#'basic.consume_ok'{consumer_tag = Tag} = amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue}, Listener),
+	{Queue, Tag}.
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
