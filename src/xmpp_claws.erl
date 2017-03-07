@@ -20,7 +20,7 @@ start_link(Host, Port, User, Domain, Password, Listener) ->
 init(?INIT_PARAMS) ->
 	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, listener = Listener}}.
 
-callback_mode() -> state_functions.
+callback_mode() -> handle_event_function.
 
 terminate(_, _, _) ->
 	io:format("Terminating...~n", []), void.
@@ -83,13 +83,15 @@ binded(cast, {send, Packet}, #data{socket = Socket}) ->
 
 binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 	io:format("Received Packet: ~p ~n", [Packet]),
-	snatch:forward(Listener, R).
+	snatch:forward(Listener, R),
+	{keep_state_and_data, []}.
 
-handle_event({info, _From}, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
+handle_event(info, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
 	NewStream = fxml_stream:parse(Stream, Packet),
     {keep_state, Data#data{stream = NewStream}, []};
-handle_event({info, _From}, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
+handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
+    {keep_state_and_data, []};    
+handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
 handle_event(cast, Content, State, Data) ->
-	spawn(name(), State, [cast, Content, Data]),
-    {keep_state_and_data, []}.
+	?MODULE:State(cast, Content, Data).
