@@ -53,7 +53,7 @@ disconnected(cast, disconnect, _Data) ->
 	{keep_state_and_data, []}.
 
 retrying(cast, connect, Data) ->
-	{next_state, disconnected, Data, [{next_event, state_timeout, 3000, connect}]}.
+	{next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
 
 connected(cast, init_stream, #data{} = Data) ->
 	Stream = fxml_stream:new(whereis(name())),
@@ -85,9 +85,15 @@ binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 handle_event(info, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
 	NewStream = fxml_stream:parse(Stream, Packet),
     {keep_state, Data#data{stream = NewStream}, []};
+handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data) when TCP == tcp_closed; TCP == tcp_error ->
+	% fxml_stream:close(Stream),
+    {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
-    {keep_state_and_data, []};    
+    {keep_state_and_data, []};
+handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream = Stream} = Data) ->
+	% fxml_stream:close(Stream),
+    {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
-handle_event(cast, Content, State, Data) ->
-	?MODULE:State(cast, Content, Data).
+handle_event(Type, Content, State, Data) ->
+	?MODULE:State(Type, Content, Data).
