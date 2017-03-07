@@ -8,7 +8,7 @@
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
 
--record(state, {jid, channel, connection, direct_queue, any_queue, event_queue}).
+-record(state, {jid, channel, connection, direct_queue, any_queue, event_queue, listener}).
 
 -define(EXCHANGE_IQ, <<"iq">>).
 -define(EXCHANGE_PRESENCE, <<"presence">>).
@@ -25,11 +25,10 @@ publish(Message) ->
 register(SocketConnection) ->
 	gen_server:call(?MODULE, {register, SocketConnection}).
 
-init([JID]) ->
+init([JID, Listener]) ->
 	{ok, Connection} = amqp_connection:start(#amqp_params_network{}),
 	{ok, Channel} = amqp_connection:open_channel(Connection),
-	State = create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection}),
-	{ok, create_bind_queues(State)}.
+	{ok, create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener})}.
 
 create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	BareJID = snatch:to_bare(JID),
@@ -37,15 +36,15 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_IQ, type = ?DIRECT}),
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_PRESENCE, type = ?BROADCAST}),
 
-	{DirectQueue, _}= declare_bind_and_consume(Channel, <<"direct_queue">>, ?EXCHANGE_IQ, [JID], whereis(?MODULE)),
-	{AnyQueue, _}	= declare_bind_and_consume(Channel, <<"any_queue">>, ?EXCHANGE_IQ, [BareJID], whereis(?MODULE)),
-	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue">>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
+	{DirectQueue, _}= declare_bind_and_consume(Channel, <<"direct_queue:", JID/binary>>, ?EXCHANGE_IQ, [JID], whereis(?MODULE)),
+	{AnyQueue, _}	= declare_bind_and_consume(Channel, <<"any_queue:", BareJID/binary>>, ?EXCHANGE_IQ, [BareJID], whereis(?MODULE)),
+	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue:", BareJID/binary>>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
 
 	S#state{direct_queue = DirectQueue, any_queue = AnyQueue, event_queue = EventQueue}.
 
 declare_bind_and_consume(Channel, Name, Exchange, Routes, Listener) ->
 	#'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{queue = Name}),
-	[ #'queue.bind_ok'{} = amqp_channel:call(Channel,	#'queue.bind'{queue = Queue, exchange = Exchange, routing_key = R}) || R <- Routes],
+	[ #'queue.bind_ok'{} = amqp_channel:call(Channel, #'queue.bind'{queue = Queue, exchange = Exchange, routing_key = R}) || R <- Routes],
 	#'basic.consume_ok'{consumer_tag = Tag} = amqp_channel:subscribe(Channel, #'basic.consume'{queue = Queue}, Listener),
 	{Queue, Tag}.
 
@@ -60,8 +59,9 @@ handle_cast({publish, Message, Exchange},State) ->
 handle_cast(_Msg, State) ->	
     {noreply, State}.
 
-handle_info({#'basic.deliver'{delivery_tag = Tag}, Message}, State) ->
+handle_info({#'basic.deliver'{delivery_tag = Tag}, Message}, #state{listener = Listener} = State) ->
 	io:format("Deliver: ~p~n", [Message#amqp_msg.payload]),
+	snatch:forward(Listener, {received, Message#amqp_msg.payload}),
 	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
 	{noreply, State};
 		
