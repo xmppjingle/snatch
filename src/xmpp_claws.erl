@@ -85,13 +85,13 @@ binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 handle_event(info, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
 	NewStream = fxml_stream:parse(Stream, Packet),
     {keep_state, Data#data{stream = NewStream}, []};
-handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data) when TCP == tcp_closed; TCP == tcp_error ->
+handle_event(info, {TCP, _Socket}, _State, #data{stream = _Stream} = Data) when TCP == tcp_closed; TCP == tcp_error ->
 	% fxml_stream:close(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
     {keep_state_and_data, []};
 handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream = Stream} = Data) ->
-	% fxml_stream:close(Stream),
+	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
