@@ -38,7 +38,7 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<"direct_queue:", JID/binary>>, ?EXCHANGE_IQ, [JID], whereis(?MODULE)),
 	{AnyQueue, _}	= declare_bind_and_consume(Channel, <<"any_queue:", BareJID/binary>>, ?EXCHANGE_IQ, [BareJID], whereis(?MODULE)),
-	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue:", BareJID/binary>>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
+	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue:", JID/binary>>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
 
 	S#state{direct_queue = DirectQueue, any_queue = AnyQueue, event_queue = EventQueue}.
 
