@@ -8,13 +8,13 @@
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
 
--record(state, {jid, channel, connection, direct_queue, any_queue, event_queue, listener}).
+-record(state, {jid, channel, connection, direct_queue, fanout_queue, listener}).
 
--define(EXCHANGE_IQ, <<"iq">>).
--define(EXCHANGE_PRESENCE, <<"presence">>).
+-define(EXCHANGE_DIRECT, <<"xmpp_direct">>).
+-define(EXCHANGE_FANOUT, <<"xmpp_fanout">>).
 
 -define(DIRECT, <<"direct">>).
--define(BROADCAST, <<"fanout">>).
+-define(FANOUT, <<"fanout">>).
 
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
@@ -33,14 +33,13 @@ init([JID, Listener]) ->
 create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	BareJID = snatch:to_bare(JID),
 	
-	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_IQ, type = ?DIRECT}),
-	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_PRESENCE, type = ?BROADCAST}),
+	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_DIRECT, type = ?DIRECT}),
+	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_FANOUT, type = ?FANOUT}),
 
-	{DirectQueue, _}= declare_bind_and_consume(Channel, <<"direct_queue:", JID/binary>>, ?EXCHANGE_IQ, [JID], whereis(?MODULE)),
-	{AnyQueue, _}	= declare_bind_and_consume(Channel, <<"any_queue:", BareJID/binary>>, ?EXCHANGE_IQ, [BareJID], whereis(?MODULE)),
-	{EventQueue, _}	= declare_bind_and_consume(Channel, <<"event_queue:", JID/binary>>, ?EXCHANGE_PRESENCE, [JID, BareJID], whereis(?MODULE)),
+	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
+	{EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
 
-	S#state{direct_queue = DirectQueue, any_queue = AnyQueue, event_queue = EventQueue}.
+	S#state{direct_queue = DirectQueue, fanout_queue = EventQueue}.
 
 declare_bind_and_consume(Channel, Name, Exchange, Routes, Listener) ->
 	#'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{queue = Name}),
