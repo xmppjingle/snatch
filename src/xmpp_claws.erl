@@ -4,7 +4,7 @@
 
 -record(data, {user, domain, password, host, port, socket=undefined, listener, stream}).
 
--export([start_link/6]).
+-export([start_link/1]).
 -export([terminate/3,code_change/4,init/1,callback_mode/0]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
@@ -14,7 +14,7 @@
 
 name() -> xmpp_claws.
 
-start_link(Host, Port, User, Domain, Password, Listener) ->
+start_link(?INIT_PARAMS) ->
     gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, []).
 
 init(?INIT_PARAMS) ->
