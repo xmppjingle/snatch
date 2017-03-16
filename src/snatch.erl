@@ -40,10 +40,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 forward(Listener, Data) when is_pid(Listener) ->
-    io:format("Forward: ~p  -> ~p ~n", [Listener, Data]),
+    lager:debug("Forward: ~p  -> ~p ~n", [Listener, Data]),
     Listener ! Data;
 forward(Listener, Data) when is_atom(Listener) ->
-    io:format("Forward: ~p  -> ~p ~n", [Listener, Data]),
+    lager:debug("Forward: ~p  -> ~p ~n", [Listener, Data]),
     gen_server:cast(Listener, Data).
 
 to_bare(#jid{user = User, server = Domain}) ->

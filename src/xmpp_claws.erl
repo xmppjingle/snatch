@@ -23,7 +23,7 @@ init(?INIT_PARAMS) ->
 callback_mode() -> handle_event_function.
 
 terminate(_, _, _) ->
-	io:format("Terminating...~n", []), void.
+	lager:info("Terminating...~n", []), void.
 
 code_change(_OldVsn, State, Data, _Extra) ->
     {ok, State, Data}.
@@ -39,13 +39,13 @@ disconnect() ->
 %% States
 
 disconnected(Type, connect, #data{host = Host, port = Port} = Data) when Type == cast; Type == state_timeout ->
-	io:format("Connecting...~n", []),
+	lager:info("Connecting...~n", []),
 	case gen_tcp:connect(Host, Port, [binary, {active, true}]) of
 		{ok, NewSocket} ->
-			io:format("Connected.~n", []),
+			lager:info("Connected.~n", []),
 			{next_state, connected, Data#data{socket = NewSocket}, [{next_event, cast, init_stream}]};
 		_Error -> 
-			io:format("Connecting Error [~p:~p]: ~p~n", [Host, Port, _Error]),
+			lager:warn("Connecting Error [~p:~p]: ~p~n", [Host, Port, _Error]),
 			{next_state, retrying, Data, [{next_event, cast, connect}]}
 	end;
 
@@ -78,7 +78,7 @@ binded(cast, {send, Packet}, #data{socket = Socket}) ->
 	{keep_state_and_data, []};
 
 binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
-	io:format("Received Packet: ~p ~n", [Packet]),
+	lager:debug("Received Packet: ~p ~n", [Packet]),
 	snatch:forward(Listener, R),
 	{keep_state_and_data, []}.
 
