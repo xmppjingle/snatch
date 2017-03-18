@@ -23,7 +23,7 @@ init(?INIT_PARAMS) ->
 callback_mode() -> handle_event_function.
 
 terminate(_, _, _) ->
-	lager:info("Terminating...~n", []), void.
+	lager:debug("Terminating...~n", []), void.
 
 code_change(_OldVsn, State, Data, _Extra) ->
     {ok, State, Data}.
@@ -96,4 +96,5 @@ handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream =
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
 handle_event(Type, Content, State, Data) ->
+	lager:debug("Anonymous: ~p ~p~n", [Type, Content]),
 	?MODULE:State(Type, Content, Data).
