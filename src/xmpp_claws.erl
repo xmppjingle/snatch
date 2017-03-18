@@ -22,8 +22,8 @@ init(?INIT_PARAMS) ->
 
 callback_mode() -> handle_event_function.
 
-terminate(_, _, _) ->
-	lager:debug("Terminating...~n", []), void.
+terminate(_E, _F, _G) ->
+	lager:debug("Terminating...~n~p~n~p~n~p~n", [_E, _F, _G]), void.
 
 code_change(_OldVsn, State, Data, _Extra) ->
     {ok, State, Data}.
