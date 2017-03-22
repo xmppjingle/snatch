@@ -25,15 +25,15 @@ handle_cast({received, _Data} = M, #state{listener = Listener} = S) ->
     {noreply, S};
 
 handle_cast(_Cast, S) ->
-    io:format("Cast: ~p  ~n", [_Cast]),
+    lager:debug("Cast: ~p  ~n", [_Cast]),
     {noreply, S}.
 
 handle_info(_Info, S) ->
-    io:format("Info: ~p  ~n", [_Info]),
+    lager:debug("Info: ~p  ~n", [_Info]),
     {noreply, S}.
 
 terminate(_, _) ->
-    io:format("Terminating...~n", []),
+    lager:debug("Terminating...~n", []),
     ok.
 
 code_change(_OldVsn, State, _Extra) ->

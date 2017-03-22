@@ -2,15 +2,15 @@
 -behaviour(gen_statem).
 -compile(export_all).
 
--record(data, {user, domain, password, host, port, socket=undefined, listener, stream}).
+-record(data, {user, domain, password, resource, host, port, socket=undefined, listener, stream}).
 
 -export([start_link/1]).
 -export([terminate/3,code_change/4,init/1,callback_mode/0]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
--define(AUTH(U, P), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>snatch</resource></query></iq>">>).
+-define(AUTH(U, P, R), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>", R/binary, "</resource></query></iq>">>).
 
--define(INIT_PARAMS, [Host, Port, User, Domain, Password, Listener]).
+-define(INIT_PARAMS, [Host, Port, User, Domain, Password, Resource, Listener]).
 
 name() -> xmpp_claws.
 
@@ -18,7 +18,7 @@ start_link(?INIT_PARAMS) ->
     gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, []).
 
 init(?INIT_PARAMS) ->
-	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, listener = Listener}}.
+	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, resource = Resource, listener = Listener}}.
 
 callback_mode() -> handle_event_function.
 
@@ -66,8 +66,8 @@ stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
 stream_init(cast, {received, _Packet}, Data) ->	
 	{next_state, authenticate, Data, [{next_event, cast, auth}]}.
 
-authenticate(cast, auth, #data{user = User, password = Password, socket = Socket} = Data) ->
-	gen_tcp:send(Socket, ?AUTH(User, Password)),
+authenticate(cast, auth, #data{user = User, password = Password, resource = Resource, socket = Socket} = Data) ->
+	gen_tcp:send(Socket, ?AUTH(User, Password, Resource)),
 	{keep_state, Data, []};
 
 authenticate(cast, {received, _Packet}, Data) ->	

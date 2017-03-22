@@ -1,0 +1,4 @@
+-record(route, {
+	jid,
+	claw
+}).
