@@ -9,6 +9,8 @@
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
 -define(AUTH(U, P, R), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>", R/binary, "</resource></query></iq>">>).
+-define(AUTH_SASL(B64), << "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>", B64/binary, "</auth>">>).
+-define(BIND(R), <<"<iq type='set' id='bind3' xmlns='jabber:client'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><resource>", R/binary, "</resource></bind></iq>">>).
 
 -define(INIT_PARAMS, [Host, Port, User, Domain, Password, Resource, Listener]).
 
@@ -64,13 +66,28 @@ stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
 	{keep_state, Data, []};
 
 stream_init(cast, {received, _Packet}, Data) ->	
-	{next_state, authenticate, Data, [{next_event, cast, auth}]}.
+	{next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
 
 authenticate(cast, auth, #data{user = User, password = Password, resource = Resource, socket = Socket} = Data) ->
 	gen_tcp:send(Socket, ?AUTH(User, Password, Resource)),
 	{keep_state, Data, []};
 
-authenticate(cast, {received, _Packet}, Data) ->	
+authenticate(cast, auth_sasl, #data{user = User, password = Password, socket = Socket} = Data) ->
+	B64 = base64:encode(<<"\0", User/binary, "\0", Password/binary>>),
+	gen_tcp:send(Socket, ?AUTH_SASL(B64)),
+	{keep_state, Data, []};
+
+authenticate(cast, {received, _Packet}, Data) ->
+	{next_state, bind, Data, [{next_event, cast, bind}]}.
+
+bind(cast, bind, #data{resource = Resource, socket = Socket, domain = Domain, stream = Stream} = Data) ->
+	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
+	NewStream = fxml_stream:new(whereis(name())),
+	gen_tcp:send(Socket, ?INIT(Domain)),
+	gen_tcp:send(Socket, ?BIND(Resource)),
+	{keep_state, Data#data{stream = NewStream}, []};
+
+bind(cast, {received, _Packet}, Data) ->
 	{next_state, binded, Data, []}.
 
 binded(cast, {send, Packet}, #data{socket = Socket}) ->
@@ -83,14 +100,20 @@ binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 	{keep_state_and_data, []}.
 
 handle_event(info, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
+	lager:debug("TCP Received: ~p ~n", [Packet]),
 	NewStream = fxml_stream:parse(Stream, Packet),
     {keep_state, Data#data{stream = NewStream}, []};
-handle_event(info, {TCP, _Socket}, _State, #data{stream = _Stream} = Data) when TCP == tcp_closed; TCP == tcp_error ->
-	% fxml_stream:close(Stream),
+handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data) when TCP == tcp_closed; TCP == tcp_error ->
+	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
     {keep_state_and_data, []};
 handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream = Stream} = Data) ->
+	lager:info("Stream End: ~p ~n", [_Name]),
+	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
+    {next_state, retrying, Data, [{next_event, cast, connect}]};
+handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State, #data{stream = Stream} = Data) ->
+	lager:warn("Stream Error: ~p ~n", [Error]),
 	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
