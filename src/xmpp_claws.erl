@@ -11,6 +11,8 @@
 -define(AUTH(U, P, R), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>", R/binary, "</resource></query></iq>">>).
 -define(AUTH_SASL(B64), << "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>", B64/binary, "</auth>">>).
 -define(BIND(R), <<"<iq type='set' id='bind3' xmlns='jabber:client'><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'><resource>", R/binary, "</resource></bind></iq>">>).
+-define(SESSION, <<"<iq type='set' id='session4'><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>">>).
+-define(PRESENCE, <<"<presence/>">>).
 
 -define(INIT_PARAMS, [Host, Port, User, Domain, Password, Resource, Listener]).
 
@@ -87,7 +89,12 @@ bind(cast, bind, #data{resource = Resource, socket = Socket, domain = Domain, st
 	gen_tcp:send(Socket, ?BIND(Resource)),
 	{keep_state, Data#data{stream = NewStream}, []};
 
-bind(cast, {received, _Packet}, Data) ->
+bind(cast, {received, _Packet}, #data{socket = Socket} = Data) ->
+	gen_tcp:send(Socket, ?SESSION),	
+	gen_tcp:send(Socket, ?PRESENCE),
+	{next_state, binding, Data, []}.
+
+binding(cast, {received, _Packet}, Data) ->
 	{next_state, binded, Data, []}.
 
 binded(cast, {send, Packet}, #data{socket = Socket}) ->
