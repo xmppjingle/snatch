@@ -80,10 +80,10 @@ forward(Listener, Data) when is_atom(Listener) ->
     gen_server:cast(Listener, Data).
 
 send(Data, JID) ->
-    gen_server:cast({send, Data, JID}).
+    gen_server:cast(?MODULE, {send, Data, JID}).
 
 send(Data) ->
-    gen_server:cast({send, Data}).
+    gen_server:cast(?MODULE, {send, Data}).
 
 to_bare(#jid{user = User, server = Domain}) ->
     <<User/binary, "@", Domain/binary>>;
