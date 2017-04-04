@@ -5,17 +5,19 @@
 
 -record(state, {jid = undefined, claws = undefined, listener = undefined}).
 
--export([start_link/3]).
+-export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -export([forward/2, is_full/1, to_bare/1]).
 
 -include_lib("xmpp.hrl").
 
-start_link(JID, Claws, Listener) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [JID, Claws, Listener], []).
+-define(INIT_PARAMS, [JID, Claws, Listener]).
 
-init([JID, Claws, Listener]) ->
+start_link(?INIT_PARAMS) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, ?INIT_PARAMS, []).
+
+init(?INIT_PARAMS) ->
     mnesia:start(),
     mnesia:create_table(route,  [{attributes, record_info(fields, route)}]),
 	{ok, #state{jid = JID, claws = Claws, listener = Listener}}.
