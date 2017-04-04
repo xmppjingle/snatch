@@ -8,7 +8,7 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([forward/2, is_full/1, to_bare/1]).
+-export([forward/2, is_full/1, to_bare/1, send/2, send/1]).
 
 -include_lib("xmpp.hrl").
 
@@ -22,13 +22,17 @@ init(?INIT_PARAMS) ->
     mnesia:create_table(route,  [{attributes, record_info(fields, route)}]),
 	{ok, #state{jid = JID, claws = Claws, listener = Listener}}.
 
-handle_call({send, _Data} = Request, _From, #state{claws = Claws} = S) ->
-    Result = forward(Claws, Request),
-    {reply, Result, S};
+handle_call(_Call, _From, S) ->
+    lager:debug("Unknown Call: ~p ~n", [_Call]),
+    {reply, ok, S}.
 
-handle_call({send, _Data, JID} = Request, _From, #state{claws = Claws} = S) ->
-    Result = forward(get_route(JID, Claws), Request),
-    {reply, Result, S}.
+handle_cast({send, _Data} = Request, #state{claws = Claws} = S) ->
+    forward(Claws, Request),
+    {noreply, S};
+
+handle_cast({send, _Data, JID} = Request, #state{claws = Claws} = S) ->
+    forward(get_route(JID, Claws), Request),
+    {noreply, S};
 
 handle_cast({received, _Data, #route{} = R} = M, #state{listener = Listener} = S) ->
     add_route(R),
@@ -74,6 +78,12 @@ forward(Listener, Data) when is_pid(Listener) ->
 forward(Listener, Data) when is_atom(Listener) ->
     lager:debug("Forward: ~p  -> ~p ~n", [Listener, Data]),
     gen_server:cast(Listener, Data).
+
+send(Data, JID) ->
+    gen_server:cast({send, Data, JID}).
+
+send(Data) ->
+    gen_server:cast({send, Data}).
 
 to_bare(#jid{user = User, server = Domain}) ->
     <<User/binary, "@", Domain/binary>>;
