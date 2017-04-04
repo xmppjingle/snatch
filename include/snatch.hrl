@@ -1,4 +1,4 @@
 -record(route, {
 	jid,
-	claw
+	claws
 }).

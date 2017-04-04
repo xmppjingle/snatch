@@ -1,6 +1,8 @@
 -module(snatch).
 -behaviour(gen_server).
 
+-include("snatch.hrl").
+
 -record(state, {jid = undefined, claws = undefined, listener = undefined}).
 
 -export([start_link/3]).
@@ -14,11 +16,22 @@ start_link(JID, Claws, Listener) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [JID, Claws, Listener], []).
 
 init([JID, Claws, Listener]) ->
+    mnesia:start(),
+    mnesia:create_table(route,  [{attributes, record_info(fields, route)}]),
 	{ok, #state{jid = JID, claws = Claws, listener = Listener}}.
 
 handle_call({send, _Data} = Request, _From, #state{claws = Claws} = S) ->
     Result = forward(Claws, Request),
+    {reply, Result, S};
+
+handle_call({send, _Data, JID} = Request, _From, #state{claws = Claws} = S) ->
+    Result = forward(get_route(JID, Claws), Request),
     {reply, Result, S}.
+
+handle_cast({received, _Data, #route{} = R} = M, #state{listener = Listener} = S) ->
+    add_route(R),
+    forward(Listener, M),
+    {noreply, S};
 
 handle_cast({received, _Data} = M, #state{listener = Listener} = S) ->
     forward(Listener, M),
@@ -38,6 +51,20 @@ terminate(_, _) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+add_route(undefined) -> ok;
+add_route(#route{jid = JID, claws = Claws}) when JID /= undefined, Claws /= undefined ->
+    mnesia:dirty_write(#route{jid = JID, claws = Claws}),
+    lager:debug("Added Route[~p]: ~p ~n", [JID, Claws]);
+add_route(_) -> ok.
+
+get_route(JID, Default) ->
+    case mnesia:dirty_read(route, JID) of
+        [#route{claws = Claws}|_] ->
+            Claws;
+        _ ->
+            Default
+    end.
 
 forward(Listener, Data) when is_pid(Listener) ->
     lager:debug("Forward: ~p  -> ~p ~n", [Listener, Data]),

@@ -2,6 +2,9 @@
 -behaviour(gen_statem).
 -compile(export_all).
 
+-include_lib("xmpp.hrl").
+-include("snatch.hrl").
+
 -record(data, {user, domain, password, resource, host, port, socket=undefined, listener, stream}).
 
 -export([start_link/1]).
@@ -101,6 +104,11 @@ binded(cast, {send, Packet}, #data{socket = Socket}) ->
 	gen_tcp:send(Socket, Packet),
 	{keep_state_and_data, []};
 
+binded(cast, {received, #xmlel{attrs = Attribs} = Packet}, #data{listener = Listener}) ->
+	lager:debug("Received Packet: ~p ~n", [Packet]),
+	snatch:forward(Listener, {received, Packet, #route{jid = get_attr(<<"from">>, Attribs), claws = ?MODULE}}),
+	{keep_state_and_data, []};
+
 binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 	lager:debug("Received Packet: ~p ~n", [Packet]),
 	snatch:forward(Listener, R),
@@ -128,3 +136,14 @@ handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
 handle_event(Type, Content, State, Data) ->
 	lager:debug("Anonymous: ~p ~p~n", [Type, Content]),
 	?MODULE:State(Type, Content, Data).
+
+get_attr(ID, Attribs) ->
+	get_attr(ID, Attribs, undefined).
+
+get_attr(ID, Attribs, Default) ->
+	case fxml:get_attr(ID, Attribs) of
+		{value, Value} -> 
+			Value;
+		_ ->
+			Default
+	end.
