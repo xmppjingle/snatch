@@ -26,12 +26,12 @@ handle_call(_Call, _From, S) ->
     lager:debug("Unknown Call: ~p ~n", [_Call]),
     {reply, ok, S}.
 
-handle_cast({send, _Data} = Request, #state{claws = Claws} = S) ->
-    forward(Claws, Request),
+handle_cast({send, Data}, #state{claws = Claws} = S) ->
+    Claws:send(Data, <<"unknown">>),
     {noreply, S};
 
-handle_cast({send, _Data, JID} = Request, #state{claws = Claws} = S) ->
-    forward(get_route(JID, Claws), Request),
+handle_cast({send, Data, JID}, #state{claws = Claws} = S) ->
+    (get_route(JID, Claws)):send(Data, JID),
     {noreply, S};
 
 handle_cast({received, _Data, #route{} = R} = M, #state{listener = Listener} = S) ->

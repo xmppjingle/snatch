@@ -1,5 +1,7 @@
 -module(xmpp_claws).
 -behaviour(gen_statem).
+-behaviour(claws).
+
 -compile(export_all).
 
 -include_lib("xmpp.hrl").
@@ -9,6 +11,7 @@
 
 -export([start_link/1]).
 -export([terminate/3,code_change/4,init/1,callback_mode/0]).
+-export([send/2]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?><stream:stream to='", D/binary, "' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>">>).
 -define(AUTH(U, P, R), <<"<iq type='set' id='auth2'><query xmlns='jabber:iq:auth'><username>", U/binary, "</username><password>", P/binary, "</password><resource>", R/binary, "</resource></query></iq>">>).
@@ -147,3 +150,6 @@ get_attr(ID, Attribs, Default) ->
 		_ ->
 			Default
 	end.
+
+send(Data, JID) ->
+	gen_statem:cast(?MODULE, {send, Data}).

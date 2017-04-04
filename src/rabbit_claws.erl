@@ -1,9 +1,10 @@
 -module(rabbit_claws).
 -behaviour(gen_server).
+-behaviour(claws).
 
 -export([start_link/1, publish/1, register/1]).
-
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([send/2]).
 
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
@@ -12,7 +13,6 @@
 
 -define(EXCHANGE_DIRECT, <<"xmpp_direct">>).
 -define(EXCHANGE_FANOUT, <<"xmpp_fanout">>).
-
 -define(DIRECT, <<"direct">>).
 -define(FANOUT, <<"fanout">>).
 
@@ -51,7 +51,11 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({publish, Message, Exchange},State) ->
+handle_cast({send, Data, JID}, State) ->
+	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = JID}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
+    {noreply, State};
+
+handle_cast({publish, Message, Exchange}, State) ->
 	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = Exchange}, #amqp_msg{props = #'P_basic'{}, payload = Message}),
 	{noreply, State};
 
@@ -85,3 +89,6 @@ terminate(_Reason, #state{channel = Channel, connection = Connection}) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+send(Data, JID) ->
+	gen_server:cast(?MODULE, {send, Data, JID}).
