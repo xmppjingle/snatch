@@ -63,13 +63,13 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({#'basic.deliver'{delivery_tag = Tag}, Message}, #state{listener = Listener} = State) ->
-	io:format("Deliver: ~p~n", [Message#amqp_msg.payload]),
+	lager:debug("Deliver: ~p~n", [Message#amqp_msg.payload]),
 	snatch:forward(Listener, {received, Message#amqp_msg.payload}),
 	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
 	{noreply, State};
 		
 handle_info(#'basic.consume_ok'{} = C, State) ->
-	io:format("Consume: ~p ~n", [C]),
+	lager:debug("Consume: ~p ~n", [C]),
     {noreply, State};
 
 handle_info(shutdown, State) ->
@@ -79,7 +79,7 @@ handle_info(#'basic.cancel_ok'{}, State) ->
     {stop, normal, State};
 
 handle_info(_Info, State) ->
-	io:format("Info: ~p~n", [_Info]),
+	lager:debug("Info: ~p~n", [_Info]),
     {noreply, State}.
 
 terminate(_Reason, #state{channel = Channel, connection = Connection}) ->
