@@ -20,14 +20,12 @@
 -define(SESSION, <<"<iq type='set' id='session4'><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></iq>">>).
 -define(PRESENCE, <<"<presence/>">>).
 
--define(INIT_PARAMS, [Host, Port, User, Domain, Password, Resource, Listener]).
-
 name() -> xmpp_claws.
 
-start_link(?INIT_PARAMS) ->
-    gen_statem:start({local, name()}, ?MODULE, ?INIT_PARAMS, []).
+start_link(Params) ->
+    gen_statem:start({local, name()}, ?MODULE, Params, []).
 
-init(?INIT_PARAMS) ->
+init(#{host := Host, port := Port, user := User, domain := Domain, password := Password, resource := Resource, listener := Listener}) ->
 	{ok, disconnected, #data{host = Host, port = Port, user = User, domain = Domain, password = Password, resource = Resource, listener = Listener}}.
 
 callback_mode() -> handle_event_function.
@@ -151,5 +149,5 @@ get_attr(ID, Attribs, Default) ->
 			Default
 	end.
 
-send(Data, JID) ->
+send(Data, _JID) ->
 	gen_statem:cast(?MODULE, {send, Data}).

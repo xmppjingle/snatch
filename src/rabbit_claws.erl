@@ -25,7 +25,7 @@ publish(Message) ->
 register(SocketConnection) ->
 	gen_server:call(?MODULE, {register, SocketConnection}).
 
-init([JID, Listener]) ->
+init(#{queue := JID, listener := Listener}) ->
 	{ok, Connection} = amqp_connection:start(#amqp_params_network{}),
 	{ok, Channel} = amqp_connection:open_channel(Connection),
 	{ok, create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener})}.
