@@ -2,9 +2,9 @@
 -behaviour(gen_server).
 -behaviour(claws).
 
--export([start_link/1, publish/1, register/1]).
+-export([start_link/1, register/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([send/2]).
+-export([send/2, publish/1]).
 
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
@@ -18,9 +18,6 @@
 
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
-
-publish(Message) ->
-	gen_server:call(?MODULE, {publish, Message}).
 
 register(SocketConnection) ->
 	gen_server:call(?MODULE, {register, SocketConnection}).
@@ -52,11 +49,13 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 handle_cast({send, Data, JID}, State) ->
-	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = JID}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
+	lager:debug("Sending Message[~p]: ~p~n", [JID, Data]),
+	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_DIRECT}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
     {noreply, State};
 
-handle_cast({publish, Message, Exchange}, State) ->
-	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = Exchange}, #amqp_msg{props = #'P_basic'{}, payload = Message}),
+handle_cast({publish, Data}, State) ->
+	lager:debug("Publishing Message[~p]: ~p~n", [Data]),
+	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_FANOUT}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
 	{noreply, State};
 
 handle_cast(_Msg, State) ->	
@@ -92,3 +91,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 send(Data, JID) ->
 	gen_server:cast(?MODULE, {send, Data, JID}).
+
+publish(Data) ->
+	gen_server:cast(?MODULE, {publish, Data}).
