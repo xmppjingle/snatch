@@ -27,11 +27,14 @@ handle_call(_Call, _From, S) ->
     {reply, ok, S}.
 
 handle_cast({send, Data}, #state{claws = Claws} = S) ->
+    lager:debug("Snatch Default Sender[~p]: ~p~n", [Claws, Data]),
     Claws:send(Data, <<"unknown">>),
     {noreply, S};
 
 handle_cast({send, Data, JID}, #state{claws = Claws} = S) ->
-    (get_route(JID, Claws)):send(Data, JID),
+    Route = get_route(JID, Claws),
+    lager:debug("Snatch Sender[~p -> ~p]: ~p~n", [JID, Route, Data]),
+    Route:send(Data, JID),
     {noreply, S};
 
 handle_cast({received, _Data, #route{} = R} = M, #state{listener = Listener} = S) ->
