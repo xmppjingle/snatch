@@ -135,7 +135,7 @@ handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State, #data{stream
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
 handle_event(Type, Content, State, Data) ->
-	lager:debug("Anonymous: ~p ~p~n", [Type, Content]),
+	lager:debug("Anonymous: ~p ~p at State:~p~n", [Type, Content, State]),
 	?MODULE:State(Type, Content, Data).
 
 get_attr(ID, Attribs) ->
