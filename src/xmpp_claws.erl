@@ -136,7 +136,12 @@ handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
 handle_event(Type, Content, State, Data) ->
 	lager:debug("Anonymous: ~p ~p at State:~p~n", [Type, Content, State]),
-	?MODULE:State(Type, Content, Data).
+	case erlang:function_exported(?MODULE, State, 3) of
+		true ->
+			?MODULE:State(Type, Content, Data);
+		_ -> 
+			lager:debug("Unknown Function: ~p~n", [State])
+	end.
 
 get_attr(ID, Attribs) ->
 	get_attr(ID, Attribs, undefined).
