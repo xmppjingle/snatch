@@ -98,7 +98,8 @@ bind(cast, {received, _Packet}, #data{socket = Socket} = Data) ->
 	gen_tcp:send(Socket, ?PRESENCE),
 	{next_state, binding, Data, []}.
 
-binding(cast, {received, _Packet}, Data) ->
+binding(cast, {received, _Packet}, #data{listener = Listener} = Data) ->
+	snatch:forward(Listener, {connected, ?MODULE}),
 	{next_state, binded, Data, []}.
 
 binded(cast, {send, Packet}, #data{socket = Socket}) ->

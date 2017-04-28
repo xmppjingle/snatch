@@ -46,6 +46,10 @@ handle_cast({received, _Data} = M, #state{listener = Listener} = S) ->
     forward(Listener, M),
     {noreply, S};
 
+handle_cast({connected, _} = M, #state{listener = Listener} = S) ->
+    forward(Listener, M),
+    {noreply, S};
+
 handle_cast(_Cast, S) ->
     lager:debug("Cast: ~p  ~n", [_Cast]),
     {noreply, S}.
