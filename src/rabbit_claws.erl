@@ -30,11 +30,11 @@ init(#{jid := JID, listener := Listener}) ->
 					{ok, Channel} ->
 						create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener});
 					_E ->
-						lager:warn("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
+						lager:info("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
 						#state{}
 				end;			
 			_E -> 
-				lager:warn("Could Not Start RabbitMQ Connection: ~p~n", [_E]),
+				lager:info("Could Not Start RabbitMQ Connection: ~p~n", [_E]),
 				#state{}
 		end,
 	{ok, State}.
