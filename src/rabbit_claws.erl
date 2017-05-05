@@ -23,9 +23,21 @@ register(SocketConnection) ->
 	gen_server:call(?MODULE, {register, SocketConnection}).
 
 init(#{jid := JID, listener := Listener}) ->
-	{ok, Connection} = amqp_connection:start(#amqp_params_network{}),
-	{ok, Channel} = amqp_connection:open_channel(Connection),
-	{ok, create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener})}.
+	State = 
+		case amqp_connection:start(#amqp_params_network{}) of
+			{ok, Connection} ->
+				case amqp_connection:open_channel(Connection) of
+					{ok, Channel} ->
+						create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener});
+					_E ->
+						lager:warn("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
+						#state{}
+				end;			
+			_E -> 
+				lager:warn("Could Not Start RabbitMQ Connection: ~p~n", [_E]),
+				#state{}
+		end,
+	{ok, State}.
 
 create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	BareJID = snatch:to_bare(JID),
