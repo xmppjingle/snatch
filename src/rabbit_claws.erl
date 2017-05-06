@@ -93,10 +93,12 @@ handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
     {noreply, State}.
 
-terminate(_Reason, #state{channel = Channel, connection = Connection}) ->
+terminate(_Reason, #state{channel = Channel, connection = Connection}) when Channel /= undefined ->
     amqp_channel:call(Channel,#'basic.cancel'{}),
 	amqp_connection:close(Connection),
-    ok.
+    ok;
+terminate(_Reason, _) ->
+	ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
