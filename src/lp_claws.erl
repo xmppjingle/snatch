@@ -19,7 +19,7 @@ init(#{url := URL, listener := Listener}) ->
 	{ok, State}.
 
 create_bind_url(#state{url = URL} = S) ->
-	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, self}]) of
+	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, {self, once}}]) of
 		{ok, Channel} ->
 			S#state{channel = Channel, params = undefined};
 		_ -> 
@@ -37,7 +37,11 @@ handle_cast(_Msg, State) ->
 	lager:debug("Unknown Cast[~p]: ~p~n", [State, _Msg]),
     {noreply, State}.
 
-handle_info({http, {Pid, stream_start, Params}}, #state{listener = Listener} = State) ->
+handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = State) ->
+	lager:debug("Channel Established: ~p~n", [Params]),
+	snatch:forward(Listener, {connected, ?MODULE}),
+	{noreply, State#state{params = Params}};
+handle_info({http, {_Pid, stream_start, Params, Pid}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Established: ~p~n", [Params]),
 	snatch:forward(Listener, {connected, ?MODULE}),
 	{noreply, State#state{params = Params, pid = Pid}};
