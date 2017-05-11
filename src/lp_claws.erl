@@ -6,9 +6,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([send/2]).
 
+-export([read_chunk/3]).
+
 -include_lib("xmpp.hrl").
 
--record(state, {url, channel, listener, params, pid, stream = <<>>}).
+-record(state, {url, channel, listener, params, pid, stream = <<>>, buffer = <<>>, size = -1}).
+
+-define(H, <<"\r\n">>).
 
 name() -> lp_claws.
 
@@ -21,7 +25,7 @@ init(#{url := URL, listener := Listener}) ->
 	{ok, State}.
 
 create_bind_url(#state{url = URL} = S) ->
-	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, {self, once}}]) of
+	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, self}]) of
 		{ok, Channel} ->
 			S#state{channel = Channel, params = undefined};
 		_ -> 
@@ -51,16 +55,17 @@ handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = St
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
 	snatch:forward(Listener, {disconnected, ?MODULE}),
 	{noreply, State#state{params = Params, channel = undefined}};
-handle_info({http, {_Pid, stream, Data}}, #state{stream = S} = State) ->
+handle_info({http, {_Pid, stream, Data}}, #state{stream = S, buffer = Buffer, size = Size} = State) ->
 	lager:debug("Channel Received: ~p~n", [Data]),
-	Stream = case S of
-		<<>> -> 
-			fxml_stream:new(whereis(name()));
-		_ ->
-			S
+	Stream = check_stream(S),
+	NState = case read_chunk(Size, Buffer, Data) of
+		{wait, NSize, NBuffer} ->
+			State#state{buffer = NBuffer, size = NSize};
+		{chunk, _S, Packet, Rem} ->
+			fxml_stream:parse(Stream, Packet),
+			State#state{buffer = Rem, size = -1}
 		end,
-	fxml_stream:parse(Stream, Data),
-	{noreply, State};
+	{noreply, NState};
 
 handle_info({'$gen_event', {xmlstreamstart, _Name, _Attribs}}, State) ->
     {noreply, State};
@@ -96,3 +101,19 @@ send(Data, JID) ->
 
 close(<<>>) -> ok;
 close(Stream) -> fxml_stream:close(Stream).
+
+check_stream(<<>>) -> 
+	fxml_stream:new(whereis(name()));
+check_stream(S) -> S.
+
+read_chunk(-1, Buffer, Data) ->
+	Bin = <<Buffer/binary, Data/binary>>,
+	{I, J} = binary:match(Bin, ?H),
+    Size = erlang:binary_to_integer(binary:part(Data, {0, I + J - byte_size(?H)}), 16),
+    Offset = I + J,
+    read_chunk(Size, binary:part(Bin, {Offset, byte_size(Bin) - Offset}), <<>>);
+read_chunk(Size, Buffer, Data) when byte_size(Buffer) + byte_size(Data) >= Size ->
+	Bin = <<Buffer/binary, Data/binary>>,
+	{chunk, Size, binary:part(Bin, {0, Size}), binary:part(Bin, {Size, byte_size(Bin) - Size})};
+read_chunk(Size, Buffer, Data) ->
+	{wait, Size, <<Buffer/binary, Data/binary>>}.
