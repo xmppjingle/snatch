@@ -44,6 +44,7 @@ handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = 
 handle_info({http, {_Pid, stream_start, Params, Pid}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Established: ~p~n", [Params]),
 	snatch:forward(Listener, {connected, ?MODULE}),
+	httpc:stream_next(Pid),
 	{noreply, State#state{params = Params, pid = Pid}};
 handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
