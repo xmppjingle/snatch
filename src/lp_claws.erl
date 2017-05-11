@@ -8,7 +8,7 @@
 
 -include_lib("xmpp.hrl").
 
--record(state, {url, channel, listener, params}).
+-record(state, {url, channel, listener, params, pid}).
 
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
@@ -37,17 +37,18 @@ handle_cast(_Msg, State) ->
 	lager:debug("Unknown Cast[~p]: ~p~n", [State, _Msg]),
     {noreply, State}.
 
-handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = State) ->
+handle_info({http, {Pid, stream_start, Params}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Established: ~p~n", [Params]),
 	snatch:forward(Listener, {connected, ?MODULE}),
-	{noreply, State#state{params = Params}};
+	{noreply, State#state{params = Params, pid = Pid}};
 handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
 	snatch:forward(Listener, {disconnected, ?MODULE}),
 	{noreply, State#state{params = Params, channel = undefined}};
-handle_info({http, {_Pid, stream, Data}}, #state{listener = Listener} = State) ->
+handle_info({http, {_Pid, stream, Data}}, #state{listener = Listener, pid = Pid} = State) ->
 	lager:debug("Channel Received: ~p~n", [Data]),
 	snatch:forward(Listener, {received, Data}),
+	httpc:stream_next(Pid),
 	{noreply, State};
 handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
