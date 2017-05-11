@@ -84,7 +84,9 @@ forward(Listener, Data) when is_pid(Listener) ->
     Listener ! Data;
 forward(Listener, Data) when is_atom(Listener) ->
     lager:debug("Forward: ~p  -> ~p ~n", [Listener, Data]),
-    gen_server:cast(Listener, Data).
+    gen_server:cast(Listener, Data);
+forward(_Listener, Data) ->
+    lager:debug("Invalid Listenet to Forward: ~p  -> ~p ~n", [_Listener, Data]).
 
 send(Data, JID) ->
     gen_server:cast(?MODULE, {send, Data, JID}).

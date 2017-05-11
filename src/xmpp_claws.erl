@@ -53,7 +53,7 @@ disconnected(Type, connect, #data{host = Host, port = Port} = Data) when Type ==
 			lager:info("Connected.~n", []),
 			{next_state, connected, Data#data{socket = NewSocket}, [{next_event, cast, init_stream}]};
 		_Error -> 
-			lager:warn("Connecting Error [~p:~p]: ~p~n", [Host, Port, _Error]),
+			lager:info("Connecting Error [~p:~p]: ~p~n", [Host, Port, _Error]),
 			{next_state, retrying, Data, [{next_event, cast, connect}]}
 	end;
 
@@ -130,7 +130,7 @@ handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream =
 	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State, #data{stream = Stream} = Data) ->
-	lager:warn("Stream Error: ~p ~n", [Error]),
+	lager:error("Stream Error: ~p ~n", [Error]),
 	case Stream of <<>> -> ok; _ -> fxml_stream:close(Stream) end,
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
