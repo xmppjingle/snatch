@@ -10,11 +10,9 @@
 
 -include_lib("xmpp.hrl").
 
--record(state, {url, channel, listener, params, pid, stream = <<>>, buffer = <<>>, size = -1}).
+-record(state, {url, channel, listener, params, pid, buffer = <<>>, size = -1}).
 
 -define(H, <<"\r\n">>).
-
-name() -> lp_claws.
 
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
@@ -50,36 +48,23 @@ handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = 
 handle_info({http, {_Pid, stream_start, Params, Pid}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Established: ~p~n", [Params]),	
 	snatch:forward(Listener, {connected, ?MODULE}),
-	{noreply, State#state{params = Params, stream = fxml_stream:new(whereis(name())), pid = Pid}};
+	httpc:stream_next(Pid),
+	{noreply, State#state{params = Params, pid = Pid}};
 handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
 	snatch:forward(Listener, {disconnected, ?MODULE}),
 	{noreply, State#state{params = Params, channel = undefined}};
-handle_info({http, {_Pid, stream, Data}}, #state{stream = S, buffer = Buffer, size = Size} = State) ->
+handle_info({http, {_Pid, stream, Data}}, #state{buffer = Buffer, size = Size, listener = Listener, pid = Pid} = State) ->
 	lager:debug("Channel Received: ~p~n", [Data]),
-	Stream = check_stream(S),
 	NState = case read_chunk(Size, Buffer, Data) of
 		{wait, NSize, NBuffer} ->
 			State#state{buffer = NBuffer, size = NSize};
 		{chunk, _S, Packet, Rem} ->
-			fxml_stream:parse(Stream, Packet),
+			snatch:forward(Listener, {received, Packet}),
 			State#state{buffer = Rem, size = -1}
 		end,
+	httpc:stream_next(Pid),
 	{noreply, NState};
-
-handle_info({'$gen_event', {xmlstreamstart, _Name, _Attribs}}, State) ->
-    {noreply, State};
-handle_info({'$gen_event', {xmlstreamend, _Name}}, #state{stream = Stream} = State) ->
-	lager:info("Stream End: ~p ~n", [_Name]),
-	close(Stream),
-    {noreply, State#state{stream = <<>>}};
-handle_info({'$gen_event', {xmlstreamerror, Error}}, #state{stream = Stream} = State) ->
-	lager:error("Stream Error: ~p ~n", [Error]),
-	close(Stream),
-    {noreply, State#state{stream = <<>>}};
-handle_info({'$gen_event', {xmlstreamelement, Data}}, #state{listener = Listener} = State) ->
-	snatch:forward(Listener, {received, Data}),
-    {noreply, State};
 
 handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
@@ -99,17 +84,10 @@ code_change(_OldVsn, State, _Extra) ->
 send(Data, JID) ->
 	gen_server:cast(?MODULE, {send, Data, JID}).
 
-close(<<>>) -> ok;
-close(Stream) -> fxml_stream:close(Stream).
-
-check_stream(<<>>) -> 
-	fxml_stream:new(whereis(name()));
-check_stream(S) -> S.
-
 read_chunk(-1, Buffer, Data) ->
 	Bin = <<Buffer/binary, Data/binary>>,
 	{I, J} = binary:match(Bin, ?H),
-    Size = erlang:binary_to_integer(binary:part(Data, {0, I + J - byte_size(?H)}), 16),
+    Size = erlang:binary_to_integer(binary:part(Bin, {0, I + J - byte_size(?H)}), 16),
     Offset = I + J,
     read_chunk(Size, binary:part(Bin, {Offset, byte_size(Bin) - Offset}), <<>>);
 read_chunk(Size, Buffer, Data) when byte_size(Buffer) + byte_size(Data) >= Size ->
