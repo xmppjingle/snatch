@@ -23,7 +23,7 @@ init(#{url := URL, listener := Listener}) ->
 	{ok, State}.
 
 create_bind_url(#state{url = URL} = S) ->
-	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, self}]) of
+	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, {self, once}}]) of
 		{ok, Channel} ->
 			S#state{channel = Channel, params = undefined};
 		_ -> 
@@ -46,7 +46,7 @@ handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = 
 	snatch:forward(Listener, {connected, ?MODULE}),
 	{noreply, State#state{params = Params}};
 handle_info({http, {_Pid, stream_start, Params, Pid}}, #state{listener = Listener} = State) ->
-	lager:debug("Channel Established: ~p~n", [Params]),	
+	lager:debug("Channel Established Pid: ~p~n", [Params]),	
 	snatch:forward(Listener, {connected, ?MODULE}),
 	httpc:stream_next(Pid),
 	{noreply, State#state{params = Params, pid = Pid}};
@@ -54,6 +54,11 @@ handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = St
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
 	snatch:forward(Listener, {disconnected, ?MODULE}),
 	{noreply, State#state{params = Params, channel = undefined}};
+handle_info({http, {_Pid, {error, Reason}}}, #state{listener = Listener} = State) ->
+	lager:debug("Channel Disconnected on Error: ~p~n", [Reason]),
+	snatch:forward(Listener, {disconnected, ?MODULE}),
+	gen_server:cast(?MODULE, connect),
+	{noreply, State#state{channel = undefined}};	
 handle_info({http, {_Pid, stream, Data}}, #state{buffer = Buffer, size = Size, listener = Listener, pid = Pid} = State) ->
 	lager:debug("Channel Received: ~p~n", [Data]),
 	NState = case read_chunk(Size, Buffer, Data) of
@@ -65,6 +70,9 @@ handle_info({http, {_Pid, stream, Data}}, #state{buffer = Buffer, size = Size, l
 		end,
 	httpc:stream_next(Pid),
 	{noreply, NState};
+handle_info(refresh, #state{pid = Pid} = State) ->
+	httpc:stream_next(Pid),
+	{noreply, State};
 
 handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
@@ -94,4 +102,5 @@ read_chunk(Size, Buffer, Data) when byte_size(Buffer) + byte_size(Data) >= Size 
 	Bin = <<Buffer/binary, Data/binary>>,
 	{chunk, Size, binary:part(Bin, {0, Size}), binary:part(Bin, {Size, byte_size(Bin) - Size})};
 read_chunk(Size, Buffer, Data) ->
+	lager:debug("Wainting for Packet completion... [~p] + [~p] ~n", [Buffer, Data]),
 	{wait, Size, <<Buffer/binary, Data/binary>>}.
