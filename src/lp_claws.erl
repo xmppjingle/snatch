@@ -8,7 +8,9 @@
 
 -include_lib("xmpp.hrl").
 
--record(state, {url, channel, listener, params, pid}).
+-record(state, {url, channel, listener, params, pid, stream = <<>>}).
+
+name() -> lp_claws.
 
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
@@ -42,19 +44,38 @@ handle_info({http, {_Pid, stream_start, Params}}, #state{listener = Listener} = 
 	snatch:forward(Listener, {connected, ?MODULE}),
 	{noreply, State#state{params = Params}};
 handle_info({http, {_Pid, stream_start, Params, Pid}}, #state{listener = Listener} = State) ->
-	lager:debug("Channel Established: ~p~n", [Params]),
+	lager:debug("Channel Established: ~p~n", [Params]),	
 	snatch:forward(Listener, {connected, ?MODULE}),
-	httpc:stream_next(Pid),
-	{noreply, State#state{params = Params, pid = Pid}};
+	{noreply, State#state{params = Params, stream = fxml_stream:new(whereis(name())), pid = Pid}};
 handle_info({http, {_Pid, stream_end, Params}}, #state{listener = Listener} = State) ->
 	lager:debug("Channel Disconnected: ~p~n", [Params]),
 	snatch:forward(Listener, {disconnected, ?MODULE}),
 	{noreply, State#state{params = Params, channel = undefined}};
-handle_info({http, {_Pid, stream, Data}}, #state{listener = Listener, pid = Pid} = State) ->
+handle_info({http, {_Pid, stream, Data}}, #state{stream = S} = State) ->
 	lager:debug("Channel Received: ~p~n", [Data]),
-	snatch:forward(Listener, {received, Data}),
-	httpc:stream_next(Pid),
+	Stream = case S of
+		<<>> -> 
+			fxml_stream:new(whereis(name()));
+		_ ->
+			S
+		end,
+	fxml_stream:parse(Stream, Data),
 	{noreply, State};
+
+handle_info({'$gen_event', {xmlstreamstart, _Name, _Attribs}}, State) ->
+    {noreply, State};
+handle_info({'$gen_event', {xmlstreamend, _Name}}, #state{stream = Stream} = State) ->
+	lager:info("Stream End: ~p ~n", [_Name]),
+	close(Stream),
+    {noreply, State#state{stream = <<>>}};
+handle_info({'$gen_event', {xmlstreamerror, Error}}, #state{stream = Stream} = State) ->
+	lager:error("Stream Error: ~p ~n", [Error]),
+	close(Stream),
+    {noreply, State#state{stream = <<>>}};
+handle_info({'$gen_event', {xmlstreamelement, Data}}, #state{listener = Listener} = State) ->
+	snatch:forward(Listener, {received, Data}),
+    {noreply, State};
+
 handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
     {noreply, State}.
@@ -72,3 +93,6 @@ code_change(_OldVsn, State, _Extra) ->
 
 send(Data, JID) ->
 	gen_server:cast(?MODULE, {send, Data, JID}).
+
+close(<<>>) -> ok;
+close(Stream) -> fxml_stream:close(Stream).
