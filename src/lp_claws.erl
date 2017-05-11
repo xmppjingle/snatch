@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 -behaviour(claws).
 
--export([start_link/1, register/1]).
+-export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([send/2]).
 
@@ -13,11 +13,10 @@
 start_link(Params) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
-register(SocketConnection) ->
-	gen_server:call(?MODULE, {register, SocketConnection}).
-
 init(#{url := URL, listener := Listener}) ->
-	{ok, create_bind_url(#state{url = URL, listener = Listener})}.
+	State = #state{url = URL, listener = Listener},
+	gen_server:cast(?MODULE, connect),
+	{ok, State}.
 
 create_bind_url(#state{url = URL} = S) ->
 	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, self}]) of
@@ -31,6 +30,9 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
+handle_cast(connect, #state{url = URL} = State) ->	
+	lager:debug("Connection Requested to: ~p~n", [URL]),
+    {noreply, create_bind_url(State)};
 handle_cast(_Msg, State) ->	
 	lager:debug("Unknown Cast[~p]: ~p~n", [State, _Msg]),
     {noreply, State}.
