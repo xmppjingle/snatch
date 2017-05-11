@@ -23,7 +23,7 @@ init(#{url := URL, listener := Listener}) ->
 	{ok, State}.
 
 create_bind_url(#state{url = URL} = S) ->
-	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, {self, once}}]) of
+	case httpc:request(get, {URL, []}, [], [{sync, false}, {stream, self}, {full_result, false}, {socket_opts, [{nodelay, true}]}]) of
 		{ok, Channel} ->
 			S#state{channel = Channel, params = undefined};
 		_ -> 
