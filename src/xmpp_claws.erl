@@ -103,6 +103,7 @@ binding(cast, {received, _Packet}, #data{listener = Listener} = Data) ->
 	{next_state, binded, Data, []}.
 
 binded(cast, {send, Packet}, #data{socket = Socket}) ->
+	lager:debug("Sending Packet: ~p ~n", [Packet]),
 	gen_tcp:send(Socket, Packet),
 	{keep_state_and_data, []};
 
