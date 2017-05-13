@@ -48,7 +48,7 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
 	% {EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
 
-	S#state{direct_queue = DirectQueue, fanout_queue = EventQueue}.
+	S#state{direct_queue = DirectQueue}.
 
 declare_bind_and_consume(Channel, Name, Exchange, Routes, Listener) ->
 	#'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{queue = Name}),
