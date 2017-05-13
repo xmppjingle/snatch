@@ -46,7 +46,7 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_FANOUT, type = ?FANOUT}),
 
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
-	{EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
+	% {EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
 
 	S#state{direct_queue = DirectQueue, fanout_queue = EventQueue}.
 
@@ -66,7 +66,7 @@ handle_cast({send, Data, JID}, State) ->
     {noreply, State};
 
 handle_cast({publish, Data}, State) ->
-	lager:debug("Publishing Message[~p]: ~p~n", [Data]),
+	lager:debug("Publishing Message: ~p~n", [Data]),
 	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_FANOUT}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
 	{noreply, State};
 
