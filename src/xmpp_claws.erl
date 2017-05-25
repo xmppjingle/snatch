@@ -115,6 +115,10 @@ binded(cast, {received, #xmlel{attrs = Attribs} = Packet}, #data{listener = List
 binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
 	lager:debug("Received Packet: ~p ~n", [Packet]),
 	snatch:forward(Listener, R),
+	{keep_state_and_data, []};
+
+binded(cast, Unknown, #data{listener = _Listener}) ->
+	lager:debug("Received Unknown Cast: ~p ~n", [Unknown]),
 	{keep_state_and_data, []}.
 
 handle_event(info, {tcp, _Socket, Packet}, _State, #data{stream = Stream} = Data) ->
