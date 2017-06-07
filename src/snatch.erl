@@ -72,7 +72,7 @@ add_route(#via{jid = JID, claws = Claws}) when JID /= undefined, Claws /= undefi
 add_route(_) -> ok.
 
 get_route(JID, Default) ->
-    case mnesia:dirty_read(route, JID) of
+    case mnesia:dirty_read(via, JID) of
         [#via{claws = Claws}|_] ->
             Claws;
         _ ->
