@@ -8,6 +8,7 @@
 
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
+-include("snatch.hrl").
 
 -record(state, {jid, channel, connection, direct_queue, fanout_queue, listener}).
 
@@ -46,7 +47,7 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_FANOUT, type = ?FANOUT}),
 
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
-	% {EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
+	{EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
 
 	S#state{direct_queue = DirectQueue}.
 
@@ -73,9 +74,9 @@ handle_cast({publish, Data}, State) ->
 handle_cast(_Msg, State) ->	
     {noreply, State}.
 
-handle_info({#'basic.deliver'{delivery_tag = Tag}, Message}, #state{listener = Listener} = State) ->
+handle_info({#'basic.deliver'{delivery_tag = Tag, exchange_name = Exchange}, Message}, #state{listener = Listener} = State) ->
 	lager:debug("Deliver: ~p~n", [Message#amqp_msg.payload]),
-	snatch:forward(Listener, {received, Message#amqp_msg.payload}),
+	snatch:forward(Listener, {received, Message#amqp_msg.payload, #route{jid = Exchange, claws = ?MODULE}}),
 	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
 	{noreply, State};
 		
