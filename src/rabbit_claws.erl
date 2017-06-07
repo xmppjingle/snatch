@@ -49,7 +49,7 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
 	{EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
 
-	S#state{direct_queue = DirectQueue}.
+	S#state{direct_queue = DirectQueue, fanout_queue = EventQueue}.
 
 declare_bind_and_consume(Channel, Name, Exchange, Routes, Listener) ->
 	#'queue.declare_ok'{queue = Queue} = amqp_channel:call(Channel, #'queue.declare'{queue = Name}),
@@ -74,9 +74,9 @@ handle_cast({publish, Data}, State) ->
 handle_cast(_Msg, State) ->	
     {noreply, State}.
 
-handle_info({#'basic.deliver'{delivery_tag = Tag, exchange_name = Exchange}, Message}, #state{listener = Listener} = State) ->
+handle_info({#'basic.deliver'{delivery_tag = Tag, exchange = Exchange}, Message}, #state{listener = Listener} = State) ->
 	lager:debug("Deliver: ~p~n", [Message#amqp_msg.payload]),
-	snatch:forward(Listener, {received, Message#amqp_msg.payload, #route{jid = Exchange, claws = ?MODULE}}),
+	snatch:forward(Listener, {received, Message#amqp_msg.payload, #via{jid = Exchange, claws = ?MODULE}}),
 	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
 	{noreply, State};
 		

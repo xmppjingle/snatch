@@ -1,4 +1,4 @@
--record(route, {
+-record(via, {
 	jid,
 	claws
 }).

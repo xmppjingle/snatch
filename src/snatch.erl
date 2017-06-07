@@ -19,7 +19,7 @@ start_link(?INIT_PARAMS) ->
 
 init(?INIT_PARAMS) ->
     mnesia:start(),
-    mnesia:create_table(route,  [{attributes, record_info(fields, route)}]),
+    mnesia:create_table(via,  [{attributes, record_info(fields, via)}]),
 	{ok, #state{jid = JID, claws = Claws, listener = Listener}}.
 
 handle_call(_Call, _From, S) ->
@@ -37,7 +37,7 @@ handle_cast({send, Data, JID}, #state{claws = Claws} = S) ->
     Route:send(Data, JID),
     {noreply, S};
 
-handle_cast({received, _Data, #route{} = R} = M, #state{listener = Listener} = S) ->
+handle_cast({received, _Data, #via{} = R} = M, #state{listener = Listener} = S) ->
     add_route(R),
     forward(Listener, M),
     {noreply, S};
@@ -66,14 +66,14 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 add_route(undefined) -> ok;
-add_route(#route{jid = JID, claws = Claws}) when JID /= undefined, Claws /= undefined ->
-    mnesia:dirty_write(#route{jid = JID, claws = Claws}),
+add_route(#via{jid = JID, claws = Claws}) when JID /= undefined, Claws /= undefined ->
+    mnesia:dirty_write(#via{jid = JID, claws = Claws}),
     lager:debug("Added Route[~p]: ~p ~n", [JID, Claws]);
 add_route(_) -> ok.
 
 get_route(JID, Default) ->
     case mnesia:dirty_read(route, JID) of
-        [#route{claws = Claws}|_] ->
+        [#via{claws = Claws}|_] ->
             Claws;
         _ ->
             Default

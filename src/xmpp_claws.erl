@@ -109,7 +109,7 @@ binded(cast, {send, Packet}, #data{socket = Socket}) ->
 
 binded(cast, {received, #xmlel{attrs = Attribs} = Packet}, #data{listener = Listener}) ->
 	lager:debug("Received Packet: ~p ~n", [Packet]),
-	snatch:forward(Listener, {received, Packet, #route{jid = get_attr(<<"from">>, Attribs), claws = ?MODULE}}),
+	snatch:forward(Listener, {received, Packet, #via{jid = get_attr(<<"from">>, Attribs), claws = ?MODULE}}),
 	{keep_state_and_data, []};
 
 binded(cast, {received, Packet} = R, #data{listener = Listener}) ->
