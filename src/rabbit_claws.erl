@@ -28,7 +28,7 @@ init(#{jid := JID, listener := Listener}) ->
 		case amqp_connection:start(#amqp_params_network{}) of
 			{ok, Connection} ->
 				case amqp_connection:open_channel(Connection) of
-					{ok, Channel} ->
+					{ok, Channel} ->						
 						create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener});
 					_E ->
 						lager:info("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
@@ -37,10 +37,10 @@ init(#{jid := JID, listener := Listener}) ->
 			_E -> 
 				lager:info("Could Not Start RabbitMQ Connection: ~p~n", [_E]),
 				#state{}
-		end,
+		end,	
 	{ok, State}.
 
-create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
+create_bind_queues(#state{channel = Channel, jid = JID, listener = Listener} = S) ->
 	BareJID = snatch:to_bare(JID),
 	
 	#'exchange.declare_ok'{} = amqp_channel:call(Channel, #'exchange.declare'{exchange = ?EXCHANGE_DIRECT, type = ?DIRECT}),
@@ -48,6 +48,8 @@ create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
 
 	{DirectQueue, _}= declare_bind_and_consume(Channel, <<?DIRECT/binary, ":", JID/binary>>, ?EXCHANGE_DIRECT, [JID, BareJID], whereis(?MODULE)),
 	{EventQueue, _}	= declare_bind_and_consume(Channel, <<?FANOUT/binary, ":", JID/binary>>, ?EXCHANGE_FANOUT, [JID, BareJID], whereis(?MODULE)),
+
+	snatch:forward(Listener, {connected, ?MODULE}),
 
 	S#state{direct_queue = DirectQueue, fanout_queue = EventQueue}.
 
