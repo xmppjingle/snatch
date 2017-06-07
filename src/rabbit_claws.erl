@@ -23,9 +23,9 @@ start_link(Params) ->
 register(SocketConnection) ->
 	gen_server:call(?MODULE, {register, SocketConnection}).
 
-init(#{jid := JID, listener := Listener}) ->
+init(#{jid := JID, listener := Listener, host := Host}) ->
 	State = 
-		case amqp_connection:start(#amqp_params_network{}) of
+		case amqp_connection:start(#amqp_params_network{host = Host}) of
 			{ok, Connection} ->
 				case amqp_connection:open_channel(Connection) of
 					{ok, Channel} ->						
