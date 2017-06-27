@@ -68,6 +68,11 @@ handle_cast({send, Data, JID}, State) ->
 	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_DIRECT,  routing_key = JID}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
     {noreply, State};
 
+handle_cast({publish, Data, JID}, State) ->
+	lager:debug("Publishing Message[~p]: ~p~n", [JID, Data]),
+	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_FANOUT,  routing_key = JID}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
+	{noreply, State};
+
 handle_cast({publish, Data}, State) ->
 	lager:debug("Publishing Message: ~p~n", [Data]),
 	amqp_channel:cast(State#state.channel, #'basic.publish'{exchange = ?EXCHANGE_FANOUT}, #amqp_msg{props = #'P_basic'{}, payload = Data}),
