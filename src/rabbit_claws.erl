@@ -4,7 +4,7 @@
 
 -export([start_link/1, register/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([send/2, publish/1]).
+-export([send/2, publish/1, publish/2]).
 
 -include("amqp_client.hrl").
 -include_lib("xmpp.hrl").
@@ -113,6 +113,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 send(Data, JID) ->
 	gen_server:cast(?MODULE, {send, Data, JID}).
+
+publish(Data, JID) ->
+	gen_server:cast(?MODULE, {publish, Data, JID}).
 
 publish(Data) ->
 	gen_server:cast(?MODULE, {publish, Data}).
