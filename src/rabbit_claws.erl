@@ -23,7 +23,7 @@ init(#{jid := JID, listener := Listener, host := Host} = Opts) ->
 			{ok, Connection} ->
 				case amqp_connection:open_channel(Connection) of
 					{ok, Channel} ->						
-						create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener});
+						create_bind_queues(#state{jid = JID, channel = Channel, connection = Connection, listener = Listener, opts = Opts});
 					_E ->
 						lager:info("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
 						#state{}
@@ -85,21 +85,37 @@ handle_info(#'basic.consume_ok'{} = C, State) ->
 	lager:debug("Consume: ~p ~n", [C]),
     {noreply, State};
 
-handle_info(shutdown, State) ->
-    {stop, normal, State};
+handle_info({'DOWN', _ConnectionRef, process, _Connection, Reason}, #state{opts = Opts} = State) ->
+    lager:info("AMQP connection error", []),
+    terminate(Reason, State),
+    NewState = 
+    	case init(Opts) of
+    		{ok, SState} ->
+    			SState;
+    		_ ->
+    			State
+    	end,
+    {noreply, NewState};
 
 handle_info(#'basic.cancel_ok'{}, State) ->
+    {noreply, normal, State};
+
+handle_info(shutdown, State) ->
     {stop, normal, State};
 
 handle_info(_Info, State) ->
 	lager:debug("Info: ~p~n", [_Info]),
     {noreply, State}.
 
-terminate(_Reason, #state{channel = Channel, connection = Connection}) when Channel /= undefined ->
-    amqp_channel:call(Channel,#'basic.cancel'{}),
-	amqp_connection:close(Connection),
-    ok;
-terminate(_Reason, _) ->
+terminate(_Reason, #state{channel = Channel, connection = Connection}) ->
+	if
+        is_pid(Channel) -> amqp_channel:close(Channel);
+        true -> pass
+    end,
+    if
+        is_pid(Connection) -> amqp_connection:close(Connection);
+        true -> pass
+    end,
 	ok.
 
 code_change(_OldVsn, State, _Extra) ->
