@@ -8,7 +8,7 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--export([forward/2, is_full/1, to_bare/1, send/2, send/1]).
+-export([forward/2, is_full/1, to_bare/1, send/3, send/2, send/1]).
 
 -include_lib("xmpp.hrl").
 
@@ -35,6 +35,12 @@ handle_cast({send, Data, JID}, #state{claws = Claws} = S) ->
     Route = get_route(JID, Claws),
     lager:debug("Snatch Sender[~p -> ~p]: ~p~n", [JID, Route, Data]),
     Route:send(Data, JID),
+    {noreply, S};
+
+handle_cast({send, Data, JID, ID}, #state{claws = Claws} = S) ->
+    Route = get_route(JID, Claws),
+    lager:debug("Snatch Sender[~p -> ~p]: ~p~n", [JID, Route, Data]),
+    Route:send(Data, JID, ID),
     {noreply, S};
 
 handle_cast({received, _Data, #via{} = R} = M, #state{listener = Listener} = S) ->
@@ -87,6 +93,9 @@ forward(Listener, Data) when is_atom(Listener) ->
     gen_server:cast(Listener, Data);
 forward(_Listener, Data) ->
     lager:debug("Invalid Listenet to Forward: ~p  -> ~p ~n", [_Listener, Data]).
+
+send(Data, JID, ID) ->
+    gen_server:cast(?MODULE, {send, Data, JID, ID}).
 
 send(Data, JID) ->
     gen_server:cast(?MODULE, {send, Data, JID}).

@@ -1,5 +1,6 @@
 -record(via, {
 	jid,
 	exchange = undefined,
-	claws
+	claws,
+	id
 }).
