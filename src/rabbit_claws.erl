@@ -82,7 +82,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({#'basic.deliver'{delivery_tag = Tag, exchange = Exchange, routing_key = Key}, #amqp_msg{props = #'P_basic'{correlation_id = ID}, payload = Payload}}, #state{listener = Listener} = State) ->
 	lager:debug("Deliver[~p]{~p}: ~p~n via: ~p~n", [Key, ID, Payload, Exchange]),
-	snatch:forward(Listener, {received, Payload, #via{jid = Key, exchange = Exchange, claws = ?MODULE}}),
+	snatch:forward(Listener, {received, Payload, #via{jid = Key, exchange = Exchange, claws = ?MODULE, id = ID}}),
 	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
 	{noreply, State};
 
