@@ -80,6 +80,12 @@ handle_cast({publish, Data}, State) ->
 handle_cast(_Msg, State) ->	
     {noreply, State}.
 
+handle_info({#'basic.deliver'{delivery_tag = Tag, exchange = Exchange, routing_key = Key}, #amqp_msg{props = #'P_basic'{correlation_id = ID}, payload = Payload}}, #state{listener = Listener} = State) ->
+	lager:debug("Deliver[~p]{~p}: ~p~n via: ~p~n", [Key, ID, Payload, Exchange]),
+	snatch:forward(Listener, {received, Payload, #via{jid = Key, exchange = Exchange, claws = ?MODULE}}),
+	amqp_channel:cast(State#state.channel, #'basic.ack'{delivery_tag = Tag}),
+	{noreply, State};
+
 handle_info({#'basic.deliver'{delivery_tag = Tag, exchange = Exchange, routing_key = Key}, Message}, #state{listener = Listener} = State) ->
 	lager:debug("Deliver[~p]: ~p~n via: ~p~n", [Key, Message#amqp_msg.payload, Exchange]),
 	snatch:forward(Listener, {received, Message#amqp_msg.payload, #via{jid = Key, exchange = Exchange, claws = ?MODULE}}),
