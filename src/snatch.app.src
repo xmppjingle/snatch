@@ -1,17 +1,14 @@
-{application, snatch,
- [
-  {description, "An Erlang Lightweight XMPP Client library"},
-  {vsn, git},
-  {modules, [
-            snatch
-            ]},
-  {registered, []},
-  {applications, [
-                  kernel,
-                  stdlib,
-                  inets,
-                  xmpp
-                 ]},
-  {env, []},
-  {files, ["src/", "include/", "rebar.config"]}
- ]}.
+{application, snatch, [
+    {description, "An Erlang Lightweight XMPP Client library"},
+    {vsn, git},
+    {registered, []},
+    {applications, [kernel,
+                    stdlib,
+                    inets,
+                    fast_xml,
+                    xmpp,
+                    amqp_client,
+                    rabbit_common,
+                    p1_utils]},
+    {env, []}
+]}.

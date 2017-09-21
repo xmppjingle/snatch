@@ -1,0 +1,20 @@
+{"1.1.0",
+[{<<"amqp_client">>,
+  {git,"git://github.com/jbrisbin/amqp_client.git",
+       {ref,"d50aec00b94f0766a048b4eceaf25ddfdeeb1d86"}},
+  0},
+ {<<"fast_xml">>,{pkg,<<"fast_xml">>,<<"1.1.23">>},1},
+ {<<"p1_utils">>,{pkg,<<"p1_utils">>,<<"1.0.9">>},1},
+ {<<"rabbit_common">>,
+  {git,"https://github.com/jbrisbin/rabbit_common.git",
+       {ref,"80814606ae23cc820c74e443383e192cd69ec030"}},
+  1},
+ {<<"stringprep">>,{pkg,<<"stringprep">>,<<"1.0.9">>},1},
+ {<<"xmpp">>,{pkg,<<"xmpp">>,<<"1.1.14">>},0}]}.
+[
+{pkg_hash,[
+ {<<"fast_xml">>, <<"1E7B311D3353806EE832D7630FEF57713987CEA40A7020669CF057D537DE4721">>},
+ {<<"p1_utils">>, <<"C33C230EFBEB4DCC02911161E3CB1A93231A92DF15E3FC97DE655A9271A26D9F">>},
+ {<<"stringprep">>, <<"9182BA39931CD1DB528B8883CAD0D63530ABE2BF21835D26CEC2F9AF8BC00BE0">>},
+ {<<"xmpp">>, <<"E186F5208E7A448A4AF784A8D2CB87CEFE99DD49B24623E25D38115B23A50E12">>}]}
+].
