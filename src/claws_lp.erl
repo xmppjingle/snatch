@@ -13,12 +13,12 @@
 -include_lib("xmpp.hrl").
 
 -record(state, {
-    url,
-    channel,
+    url :: string(),
+    channel :: httpc:request_id(),
     params,
-    pid,
-    buffer = <<>>,
-    size = -1
+    pid :: pid(),
+    buffer = <<>> :: binary(),
+    size = -1 :: integer()
 }).
 
 -define(EOL, <<"\r\n">>).

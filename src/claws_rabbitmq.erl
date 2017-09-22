@@ -17,8 +17,7 @@
     channel,
     connection,
     direct_queue,
-    fanout_queue,
-    opts
+    fanout_queue
 }).
 
 -define(EXCHANGE_DIRECT, <<"xmpp_direct">>).
@@ -45,8 +44,7 @@ init(#{jid := JID, host := Host} = Opts) ->
             case amqp_connection:open_channel(Connection) of
                 {ok, Channel} ->
                     create_bind_queues(#state{jid = JID, channel = Channel,
-                                              connection = Connection,
-                                              opts = Opts});
+                                              connection = Connection});
                 _E ->
                     error_logger:error_msg("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
                     #state{}

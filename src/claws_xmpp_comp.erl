@@ -90,6 +90,7 @@ stream_init(cast, {received, {xmlstreamstart, _, Attribs}}, Data) ->
              [{next_event, cast, {handshake, StreamID}}]};
         false ->
             error_logger:error_msg("stream invalid, no Stream ID", []),
+            gen_tcp:close(Data#data.socket),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
     end.
 
