@@ -17,7 +17,7 @@
 }).
 
 -export([start_link/1]).
--export([init/1, callback_mode/0]).
+-export([init/1, callback_mode/0, terminate/3]).
 -export([send/2, send/3]).
 
 -define(INIT(D),
@@ -55,7 +55,7 @@ disconnect() ->
 
 disconnected(Type, connect, #data{host = Host, port = Port} = Data)
         when Type =:= cast orelse Type =:= state_timeout ->
-    case gen_tcp:connect(Host, Port, [binary, {active, once}]) of
+    case gen_tcp:connect(Host, Port, [binary, {active, true}]) of
         {ok, NewSocket} ->
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};
@@ -104,7 +104,7 @@ authenticate(cast, {handshake, StreamID},
     {keep_state, Data, []};
 
 authenticate(cast, {received, #xmlel{name = <<"handshake">>,
-                                     children = []}}, Data) ->    
+                                     children = []}}, Data) ->
     {next_state, ready, Data, []}.
 
 
@@ -159,6 +159,9 @@ handle_event(Type, Content, State, Data) ->
         _ -> 
             error_logger:error_msg("Unknown Function: ~p~n", [State])
     end.
+
+terminate(_Reason, _StateName, _StateData) ->
+    ok.
 
 get_attr(ID, Attribs) ->
     get_attr(ID, Attribs, undefined).

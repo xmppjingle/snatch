@@ -13,6 +13,12 @@ Params = #{host => "example.com",
 {ok, PID} = claws_xmpp_comp:start_link(Params).
 ```
 
+To connect to the system you have to call to the function:
+
+```erlang
+claws_xmpp_comp:connect().
+```
+
 The params passed inside of the map for the `start_link/1` function are:
 
 - `host` the Host to connect to the system. It could be a string with a name or a 4-element tuple for the IP (i.e. `{127,0,0,1}`).
