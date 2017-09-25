@@ -1,5 +1,7 @@
 -module(claws_dummy).
--compile([warnings_as_errors, debug_info, export_all]).
+-compile([warnings_as_errors, debug_info]).
+
+-export([send/2, send/3]).
 
 send(Data, JID) ->
     snatch_tests ! {?MODULE, Data, JID, undefined},

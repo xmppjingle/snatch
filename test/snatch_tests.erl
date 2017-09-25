@@ -1,5 +1,5 @@
 -module(snatch_tests).
--compile([warnings_as_errors, export_all, debug_info]).
+-compile([warnings_as_errors, debug_info]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("snatch.hrl").
