@@ -3,7 +3,7 @@ snatch
 
 [![Build Status](https://img.shields.io/travis/manuel-rubio/snatch/master.svg)](https://travis-ci.org/manuel-rubio/snatch)
 [![Codecov](https://img.shields.io/codecov/c/github/manuel-rubio/snatch.svg)](https://codecov.io/gh/manuel-rubio/snatch)
-[![License: Apache 2.0](https://img.shields.io/github/license/manuel-rubio/snatch.svg)](https://raw.githubusercontent.com/manuel-rubio/snatch/master/LICENSE)
+[![License: Apache 2.0](https://img.shields.io/github/license/xmppjingle/snatch.svg)](https://raw.githubusercontent.com/xmppjingle/snatch/master/LICENSE)
 
 Lightweight XMPP Client Library for Erlang. This library is intended to handle client connections in an agnostic way. The system is launched using the snatch process and configuring as many claws as you need.
 
