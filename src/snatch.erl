@@ -12,7 +12,7 @@
                 callback :: module(),
                 substate :: term()}).
 
--export([start_link/3]).
+-export([start_link/3, stop/0]).
 -export([send/3, send/2, send/1, received/1, received/2, connected/1,
          disconnected/1]).
 
@@ -29,13 +29,20 @@
 -callback terminate(Reason :: atom(), State :: term()) -> ok.
 
 
--spec start_link(claws(), module(), [term()]) -> {ok, pid()}.
+-spec start_link(claws(), module(), [term()]) -> {ok, pid()} | {error, any()}.
 %% @doc starts the server using snatch as registered name, using
 %%      Claws param to know what kind of handling of connection to use
 %%      and Module for the callbacks to send the received information.
 %%      Args could be whatever you need to pass to your init/1 callback.
 start_link(Claws, Module, Args) ->
-    {ok, _PID} = gen_server:start_link(?MODULE, [Claws, Module, Args], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE,
+                          [Claws, Module, Args], []).
+
+
+-spec stop() -> ok.
+%% @doc stops the snatch server.
+stop() ->
+    ok = gen_server:stop(?MODULE).
 
 
 -spec send(Data :: term(), jid(), ID :: binary()) -> ok.
@@ -128,10 +135,7 @@ handle_cast({connected, _} = Msg, #state{callback = Module} = State) ->
     forward(Module, Msg, State);
 
 handle_cast({disconnected, _} = Msg, #state{callback = Module} = State) ->
-    forward(Module, Msg, State);
-
-handle_cast(_Cast, S) ->
-    {noreply, S}.
+    forward(Module, Msg, State).
 
 
 handle_info(_Info, S) ->
