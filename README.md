@@ -23,7 +23,7 @@ In the same way we prefer to use [rebar3](http://www.rebar3.org) instead of olde
 
 ```erlang
 {deps, [
-    {snatch, {git, "https://github.com/manuel-rubio/snatch.git", {tag, master}}}
+    {snatch, {git, "https://github.com/manuel-rubio/snatch.git", {branch, master}}}
 ]}
 ```
 
