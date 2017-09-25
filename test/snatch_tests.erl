@@ -12,6 +12,9 @@
         1000 -> throw(timeout)
     end end)()).
 
+-export([init/1, handle_info/2, terminate/2]).
+-export([send/2, send/3]).
+
 %% snatch behaviour
 init([stop]) ->
     {stop, normal};
