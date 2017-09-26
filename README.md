@@ -65,8 +65,8 @@ You can use this template to develop your own modules:
 -module(my_own_module).
 -behaviour(snatch).
 
--include_lib("snatch.hrl").
--include_lib("xmpp.hrl").
+-include_lib("snatch/include/snatch.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 
 -export([init/1, handle_info/2, terminate/2]).
 

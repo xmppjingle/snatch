@@ -4,7 +4,7 @@
 
 -compile(export_all).
 
--include_lib("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("snatch.hrl").
 
 -record(data, {

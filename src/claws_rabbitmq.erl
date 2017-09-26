@@ -8,8 +8,8 @@
          code_change/3]).
 -export([send/2, send/3, publish/1, publish/2]).
 
--include_lib("xmpp.hrl").
--include_lib("amqp_client.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
+-include_lib("amqp_client/include/amqp_client.hrl").
 -include("snatch.hrl").
 
 -record(state, {

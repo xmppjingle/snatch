@@ -3,7 +3,7 @@
 
 -behaviour(gen_server).
 
--include_lib("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("snatch.hrl").
 
 -type claws() :: claws_rabbitmq | claws_xmpp | claws_xmpp_comp.

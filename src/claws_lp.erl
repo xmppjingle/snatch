@@ -10,7 +10,7 @@
 
 -export([read_chunk/3]).
 
--include_lib("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 
 -record(state, {
     url :: string(),

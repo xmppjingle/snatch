@@ -3,7 +3,7 @@
 
 -export([is_full/1, to_bare/1]).
 
--include_lib("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 
 
 -spec is_full(#jid{} | binary()) -> boolean().
