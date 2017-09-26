@@ -47,7 +47,7 @@ Configuring
 There are no strict configuration for the application. You have to send the specific information when you start the specific process:
 
 ```erlang
-{ok, PID} = snatch:start_link([claws_xmpp, my_module, []]).
+{ok, PID} = snatch:start_link(claws_xmpp, my_module, []).
 ```
 
 This format helps to start snatch using `my_module` as our implementation of the `snatch` behaviour to use the callbacks to implement the behaviour we want to achieve.
