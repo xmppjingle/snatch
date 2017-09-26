@@ -61,7 +61,7 @@ Callbacks
 
 You can use this template to develop your own modules:
 
-```
+```erlang
 -module(my_own_module).
 -behaviour(snatch).
 
