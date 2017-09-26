@@ -6,6 +6,7 @@
                     stdlib,
                     inets,
                     fast_xml,
+                    stringprep,
                     xmpp,
                     amqp_client,
                     rabbit_common,
