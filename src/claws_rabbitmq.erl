@@ -58,7 +58,7 @@ init(#{jid := JID, host := Host} = Opts) ->
 create_bind_queues(#state{channel = Channel, jid = JID} = S) ->
     BareJID = snatch_jid:to_bare(JID),
     PID = whereis(?MODULE),
-    [DirectQueue, EventQueue] = lists:maps(fun({Exchange, Type}) ->
+    [DirectQueue, EventQueue] = lists:map(fun({Exchange, Type}) ->
         Opts = #'exchange.declare'{exchange = Exchange, type = Type},
         #'exchange.declare_ok'{} = amqp_channel:call(Channel, Opts),
         Name = <<Type/binary, ":", JID/binary>>,
