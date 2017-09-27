@@ -1,54 +1,92 @@
-Claws XMPP over AMQP
-====================
 
-This claw uses AMQP to sends/receives packets to the XMPP Server. There are no officially support for this but snatch could do performs the gateway action configuring an XMPP Component claw and this one. This way everything send from the XMPP Server to the component could be received by our implementation and send back to this claw to be enqueued for another clients.
 
-**DISCLAIMER** This claw has been tested using [RabbitMQ](https://www.rabbitmq.com/). You can use other AMQP servers but we cannot warranty they could works in the same way.
+# Module claws_rabbitmq #
+* [Function Index](#index)
+* [Function Details](#functions)
 
-We can start this claw in this way:
+__Behaviours:__ [`claws`](claws.md), [`gen_server`](gen_server.md).
 
-```erlang
-Params = #{jid => <<"news.example.com/resource">>,
-           host => "example.com",
-           username => <<"guest">>,
-           password => <<"guest">>},
-{ok, PID} = claws_rabbitmq:start_link(Params).
-```
+<a name="index"></a>
 
-The options are as follow:
+## Function Index ##
 
-- `jid` the Jabber Identification to use for the component / user. Is intended to be a full JID.
-- `host` the AMQP hostname where to be connected.
-- `username` the username for the AMQP authentication.
-- `password` the password for the AMQP authentication.
 
-The system is following these steps:
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#code_change-3">code_change/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_call-3">handle_call/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_cast-2">handle_cast/2</a></td><td></td></tr><tr><td valign="top"><a href="#handle_info-2">handle_info/2</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#publish-1">publish/1</a></td><td></td></tr><tr><td valign="top"><a href="#publish-2">publish/2</a></td><td></td></tr><tr><td valign="top"><a href="#register-1">register/1</a></td><td></td></tr><tr><td valign="top"><a href="#send-2">send/2</a></td><td></td></tr><tr><td valign="top"><a href="#send-3">send/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
 
-1. Connect to the AMQP system.
-2. Open a channel.
-3. Create and bind queues.
 
-The queues and exhanges created by the claw are the following ones:
+<a name="functions"></a>
 
-- Exchange `xmpp_direct` (direct)
-- Exchange `xmpp_fanout` (fanout)
-- Queue `xmpp_direct:FullJID` (direct) is created to receive direct messages.
-- Queue `xmpp_fanout:FullJID` (fanout) is created to receive messages sent to all of the connected consumers of the full JID.
-- Queue `xmpp_direct:BareJID` (direct) is created to receive direct messages to the bare JID. Useful for load balancing and avoid to receive the same stanza in all of the servers connected to the same bare JID.
-- Queue `xmpp_fanout:BareJID` (fanout) is created to receive messages sent to all of the servers and when the stanzas should be received for all of the connected servers using the same bare JID.
+## Function Details ##
 
-The way it works is when you receive a packet from AMQP that packet is sent back to snatch and to the implementation with a `#via{}` information and the field `exchange` filled.
+<a name="code_change-3"></a>
 
-If you want to send a stanza, based on the JID, directly (direct) to the other party you can use:
+### code_change/3 ###
 
-```erlang
-claws_rabbitmq:send(<<"<presence/>">>, <<"news.example.com">>).
-```
+`code_change(OldVsn, State, Extra) -> any()`
 
-Or using the broadcast (fanout) this wat:
+<a name="handle_call-3"></a>
 
-```erlang
-claws_rabbitmq:publish(<<"<presence/>">>, <<"news.example.com">>).
-```
+### handle_call/3 ###
 
-The use of `snatch:send/2` is limited this time to only direct messages so you can use whatever of them, the snatch one or the claws_rabbitmq one.
+`handle_call(Request, From, State) -> any()`
+
+<a name="handle_cast-2"></a>
+
+### handle_cast/2 ###
+
+`handle_cast(Msg, State) -> any()`
+
+<a name="handle_info-2"></a>
+
+### handle_info/2 ###
+
+`handle_info(Basic.consume_ok, State) -> any()`
+
+<a name="init-1"></a>
+
+### init/1 ###
+
+`init(Opts) -> any()`
+
+<a name="publish-1"></a>
+
+### publish/1 ###
+
+`publish(Data) -> any()`
+
+<a name="publish-2"></a>
+
+### publish/2 ###
+
+`publish(Data, JID) -> any()`
+
+<a name="register-1"></a>
+
+### register/1 ###
+
+`register(SocketConnection) -> any()`
+
+<a name="send-2"></a>
+
+### send/2 ###
+
+`send(Data, JID) -> any()`
+
+<a name="send-3"></a>
+
+### send/3 ###
+
+`send(Data, JID, ID) -> any()`
+
+<a name="start_link-1"></a>
+
+### start_link/1 ###
+
+`start_link(Params) -> any()`
+
+<a name="terminate-2"></a>
+
+### terminate/2 ###
+
+`terminate(Reason, State) -> any()`
+

@@ -10,3 +10,5 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 _build
+cobertura.xml
+rebar3.crashdump

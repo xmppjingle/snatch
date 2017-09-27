@@ -1,5 +1,8 @@
 all: compile
 
+doc:
+	./rebar3 as doc edown
+
 clean-devel: clean
 	-rm -rf _build
 
@@ -10,7 +13,7 @@ compile:
 	./rebar3 compile
 
 test:
-	./rebar3 do eunit, cover
+	./rebar3 do xref, eunit, cover
 	./covertool \
 		-cover _build/test/cover/eunit.coverdata \
 		-appname snatch \
@@ -19,4 +22,4 @@ test:
 shell:
 	./rebar3 shell
 
-.PHONY: test compile all shell
+.PHONY: doc test compile all shell

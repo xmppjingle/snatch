@@ -61,7 +61,7 @@ send(Data, JID) ->
 
 -spec send(Data :: term()) -> ok.
 %% @doc send Data to the external connection using the default claw
-%%      configured at start of snatch and <<"unknown">> as JID.
+%%      configured at start of snatch and `<<"unknown">>' as JID.
 send(Data) ->
     ok = gen_server:cast(?MODULE, {send, Data}).
 

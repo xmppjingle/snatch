@@ -14,15 +14,15 @@ Lightweight XMPP Client Library for Erlang. This library is intended to handle c
 
 The built-in claws are:
 
-- [XMPP Client](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_xmpp.md)
-- [XMPP Component](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_xmpp_comp.md)
-- [XMPP over HTTP Long-polling](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_lp.md)
-- [XMPP over AMQP](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_rabbitmq.md)
+- [XMPP Client](doc/how-to/claws_xmpp.md)
+- [XMPP Component](doc/how-to/claws_xmpp_comp.md)
+- [XMPP over HTTP Long-polling](doc/how-to/claws_lp.md)
+- [XMPP over AMQP](doc/how-to/claws_rabbitmq.md)
 
 Installation
 ------------
 
-The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem.html) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
+The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem.md) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
 
 In the same way we prefer to use [rebar3](http://www.rebar3.org) instead of older versions. To install snatch only needs:
 
@@ -133,7 +133,7 @@ snatch:send(<<"<presence/>">>).
 Troubleshooting
 ---------------
 
-Feel free to create an issue in github to point a bug, flaw or improvement and even send a pull request with a specific change. Read the [LICENSE](http://github.com/manuel-rubio/snatch/blob/master/doc/LICENSE) if you have doubts about what you can do with the code.
+Feel free to create an issue in github to point a bug, flaw or improvement and even send a pull request with a specific change. Read the [LICENSE](LICENSE) if you have doubts about what you can do with the code.
 
 Enjoy!
 
@@ -142,11 +142,11 @@ Enjoy!
 
 
 <table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws.md" class="module">claws</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_lp.md" class="module">claws_lp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_rabbitmq.md" class="module">claws_rabbitmq</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch.md" class="module">snatch</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_jid.md" class="module">snatch_jid</a></td></tr></table>
+<tr><td><a href="claws.md" class="module">claws</a></td></tr>
+<tr><td><a href="claws_lp.md" class="module">claws_lp</a></td></tr>
+<tr><td><a href="claws_rabbitmq.md" class="module">claws_rabbitmq</a></td></tr>
+<tr><td><a href="claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
+<tr><td><a href="claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
+<tr><td><a href="snatch.md" class="module">snatch</a></td></tr>
+<tr><td><a href="snatch_jid.md" class="module">snatch_jid</a></td></tr></table>
 
