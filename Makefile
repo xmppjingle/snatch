@@ -13,6 +13,7 @@ compile:
 	./rebar3 compile
 
 test:
+	-epmd -daemon
 	./rebar3 do xref, eunit, cover
 	./covertool \
 		-cover _build/test/cover/eunit.coverdata \
