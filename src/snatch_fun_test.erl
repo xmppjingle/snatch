@@ -116,8 +116,8 @@ run_action({expected, Stanzas}, {ExpectedStanzas, OldRecvStanzas, Map}) ->
     NewMap = check_stanzas(ReceivedStanzas, NewExpectedStanzas, Map),
     {NewExpectedStanzas, OldRecvStanzas ++ ReceivedStanzas, NewMap};
 
-run_action({check, {M, F}}, {SentStanzas, ReceivedStanzas, Map}) ->
-    ok = apply(M, F, [SentStanzas, ReceivedStanzas, Map]).
+run_action({check, {M, F}}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
+    ok = apply(M, F, [ExpectedStanzas, ReceivedStanzas, Map]).
 
 process_action(#xmlel{attrs = Attrs, children = Children} = El,
                {ProcessedStanzas, Map}) ->
