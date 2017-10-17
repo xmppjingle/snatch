@@ -11,5 +11,8 @@
                     amqp_client,
                     rabbit_common,
                     p1_utils]},
-    {env, []}
+    {env, []},
+    {maintainers, ["Thiago Camargo", "Manuel Rubio"]},
+    {licenses, ["Apache License 2.1"]},
+    {links, [{"Github", "https://github.com/manuel-rubio/snatch"}]}
 ]}.
