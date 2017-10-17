@@ -1,0 +1,29 @@
+<functional>
+    <config>
+        <snatch module="snatch_fun_test_tests"/>
+    </config>
+
+    <steps>
+        <step name="ping">
+            <vars>
+                <value key="id">test_bot</value>
+                <value key="user">bob@localhost/pc</value>
+                <value key="component">alice.localhost</value>
+            </vars>
+            <send>
+                <iq type="get"
+                    from="{{user}}"
+                    to="{{component}}"
+                    id="{{id}}">
+                    <ping xmlns="urn:xmpp:ping"/>
+                </iq>
+            </send>
+            <expected>
+                <iq type="result"
+                    to="{{user}}"
+                    from="{{component}}"
+                    id="{{id}}"/>
+            </expected>
+        </step>
+    </steps>
+</functional>

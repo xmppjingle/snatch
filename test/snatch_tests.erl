@@ -2,6 +2,7 @@
 -compile([warnings_as_errors, debug_info]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
 
 -define(RECEIVE(What), (fun() ->
@@ -39,7 +40,6 @@ send(Data, JID) ->
 send(Data, JID, ID) ->
     ?MODULE ! {send, Data, JID, ID},
     ok.
-
 
 snatch_send_and_receive_test() ->
     {ok, _PID} = snatch:start_link(?MODULE, ?MODULE, [self()]),
