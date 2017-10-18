@@ -237,7 +237,8 @@ receive_stanzas(ReceivedStanzas) ->
     end.
 
 parse_file(Test) ->
-    File = filename:dirname(?FILE) ++ "/../test/functional/" ++ Test ++ ".xml",
+    {ok, BaseDir} = file:get_cwd(),
+    File = BaseDir ++ "/test/functional/" ++ Test ++ ".xml",
     {ok, XML} = file:read_file(File),
     Parsed = case fxml_stream:parse_element(XML) of
         #xmlel{} = P ->
