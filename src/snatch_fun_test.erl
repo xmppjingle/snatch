@@ -49,7 +49,7 @@ check(Tests, Timeout, Verbose) ->
         }
     }.
 
-send(PingResponse, <<"unknown">>) ->
+send(PingResponse, _JID) ->
     ?TEST_PROCESS ! {send, PingResponse},
     ok.
 
