@@ -60,7 +60,7 @@ Another more complete example:
                 <value key="user">bob@localhost/pc</value>
                 <value key="component">alice.localhost</value>
             </vars>
-            <send>
+            <send via="true">
                 <iq type="get"
                     from="{{user}}"
                     to="{{component}}"
@@ -107,6 +107,8 @@ This section let us to send XMPP stanzas. This simulates the interaction from th
 When we receive a stanza, it's translated to `#xmlel{}` record and passed to the `handle_info/2` functions implemented in your code. The configuration should be done in the first part of the document (in the `config` section).
 
 The code could reply to that code or not. That depends on your implementation. You can check if everything went well checking the response in case of this is sent back (using `snatch:send/2-3`) or checking internally your system. See `check` section below for more information about this.
+
+Via has an optional attribute called `via`. This attribute let you to decide if the send for `handle_info/2` implementation from *snatch* should use the send `{received, #xmlel{}}` or `{received, #xmlel{}, #via{}}` instead, depending on if `via` is `false` or `true` respectively.
 
 Expected
 --------

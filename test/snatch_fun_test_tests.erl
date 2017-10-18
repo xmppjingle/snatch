@@ -72,7 +72,7 @@ init([]) ->
 terminate(_Reason, _State) ->
     ok.
 
-handle_info({received, ?QUERY_REQUEST}, []) ->
+handle_info({received, ?QUERY_REQUEST, #via{}}, []) ->
     snatch:send(fxml:element_to_binary(?QUERY_RESPONSE)),
     {noreply, []};
 

@@ -21,6 +21,7 @@
 
 -include_lib("fast_xml/include/fxml.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("snatch.hrl").
 
 -record(functional, {
     steps = [] :: [term()],
@@ -102,6 +103,17 @@ run_step(#step{name = Name, actions = Actions}) ->
 
 run_action({vars, VarsMap}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     NewMap = maps:merge(Map, VarsMap),
+    {ExpectedStanzas, ReceivedStanzas, NewMap};
+
+run_action({send_via, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
+    {ProcessedStanzas, NewMap} = lists:foldl(fun process_action/2,
+                                             {[], Map}, Stanzas),
+    lists:foreach(fun(Stanza) ->
+        From = get_attr(<<"from">>, Stanza),
+        To = get_attr(<<"to">>, Stanza),
+        Via = #via{jid = From, exchange = To, claws = ?MODULE},
+        snatch:received(Stanza, Via)
+    end, ProcessedStanzas),
     {ExpectedStanzas, ReceivedStanzas, NewMap};
 
 run_action({send, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
@@ -282,8 +294,8 @@ get_cdata([#xmlel{children = C}|Children], CData) ->
 get_cdata([], CData) ->
     CData.
 
-% get_attr(Name, #xmlel{} = XmlEl) when is_binary(Name) ->
-%     get_attr(Name, XmlEl, undefined).
+get_attr(Name, #xmlel{} = XmlEl) when is_binary(Name) ->
+    get_attr(Name, XmlEl, undefined).
 
 get_attr(Name, #xmlel{attrs = Attrs}, Default) when is_binary(Name) ->
     case lists:keyfind(Name, 1, Attrs) of
@@ -331,8 +343,11 @@ parse_action(#xmlel{name = <<"vars">>, children = Vars}) ->
     end, #{}, Vars),
     {vars, Map};
 
-parse_action(#xmlel{name = <<"send">>, children = Send}) ->
-    {send, Send};
+parse_action(#xmlel{name = <<"send">>, children = Send} = Tag) ->
+    case get_attr_atom(<<"via">>, Tag, false) of
+        true -> {send_via, Send};
+        false -> {send, Send}
+    end;
 
 parse_action(#xmlel{name = <<"expected">>, children = Expected}) ->
     {expected, Expected};

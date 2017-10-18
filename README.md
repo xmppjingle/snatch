@@ -22,7 +22,7 @@ The built-in claws are:
 Installation
 ------------
 
-The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem.html) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
+The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
 
 In the same way we prefer to use [rebar3](http://www.rebar3.org) instead of older versions. To install snatch only needs:
 
@@ -129,6 +129,11 @@ For example:
 ```erlang
 snatch:send(<<"<presence/>">>).
 ```
+
+Testing
+-------
+
+There are a framework to test XMPP easily. For further information: [testing framework](http://github.com/manuel-rubio/snatch/blob/master/doc/testing.md).
 
 Troubleshooting
 ---------------
