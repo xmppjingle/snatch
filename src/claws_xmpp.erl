@@ -136,9 +136,9 @@ binded(cast, {send, Packet}, #data{socket = Socket}) ->
     gen_tcp:send(Socket, Packet),
     {keep_state_and_data, []};
 
-binded(cast, {received, #xmlel{attrs = Attribs} = Packet}, _Data) ->
-    From = get_attr(<<"from">>, Attribs),
-    To = get_attr(<<"to">>, Attribs),
+binded(cast, {received, #xmlel{} = Packet}, _Data) ->
+    From = snatch_xml:get_attr(<<"from">>, Packet),
+    To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     snatch:received(Packet, Via),
     {keep_state_and_data, []};
@@ -178,17 +178,6 @@ handle_event(Type, Content, State, Data) ->
             ?MODULE:State(Type, Content, Data);
         _ -> 
             error_logger:error_msg("Unknown Function: ~p~n", [State])
-    end.
-
-get_attr(ID, Attribs) ->
-    get_attr(ID, Attribs, undefined).
-
-get_attr(ID, Attribs, Default) ->
-    case fxml:get_attr(ID, Attribs) of
-        {value, Value} -> 
-            Value;
-        _ ->
-            Default
     end.
 
 send(Data, _JID) ->

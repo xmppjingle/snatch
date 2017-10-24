@@ -13,6 +13,7 @@
     host :: inet:socket_address(),
     port :: inet:port_number(),
     socket :: gen_tcp:socket(),
+    trimmed = false :: boolean(),
     stream
 }).
 
@@ -35,11 +36,13 @@ start_link(Params) ->
 init(#{host := Host,
        port := Port,
        domain := Domain,
-       password := Password}) ->
+       password := Password} = Cfg) ->
+    Trimmed = maps:get(trimmed, Cfg, false),
     {ok, disconnected, #data{host = Host,
                              port = Port,
                              domain = Domain,
-                             password = Password}}.
+                             password = Password,
+                             trimmed = Trimmed}}.
 
 callback_mode() -> handle_event_function.
 
@@ -109,9 +112,17 @@ ready(cast, {send, Packet}, #data{socket = Socket}) ->
     gen_tcp:send(Socket, Packet),
     {keep_state_and_data, []};
 
-ready(cast, {received, #xmlel{attrs = Attribs} = Packet}, _Data) ->
-    From = get_attr(<<"from">>, Attribs),
-    To = get_attr(<<"to">>, Attribs),
+ready(cast, {received, Packet}, #data{trimmed = true}) ->
+    From = snatch_xml:get_attr(<<"from">>, Packet),
+    To = snatch_xml:get_attr(<<"to">>, Packet),
+    Via = #via{jid = From, exchange = To, claws = ?MODULE},
+    TrimmedPacket = snatch_xml:clean_spaces(Packet),
+    snatch:received(TrimmedPacket, Via),
+    {keep_state_and_data, []};
+
+ready(cast, {received, Packet}, #data{trimmed = false}) ->
+    From = snatch_xml:get_attr(<<"from">>, Packet),
+    To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     snatch:received(Packet, Via),
     {keep_state_and_data, []}.
@@ -147,17 +158,6 @@ handle_event(Type, Content, State, Data) ->
 
 terminate(_Reason, _StateName, _StateData) ->
     ok.
-
-get_attr(ID, Attribs) ->
-    get_attr(ID, Attribs, undefined).
-
-get_attr(ID, Attribs, Default) ->
-    case fxml:get_attr(ID, Attribs) of
-        {value, Value} -> 
-            Value;
-        _ ->
-            Default
-    end.
 
 send(Data, JID) ->
     send(Data, JID, undefined).

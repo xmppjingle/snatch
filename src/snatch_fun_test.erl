@@ -110,8 +110,8 @@ run_action({send_via, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     {ProcessedStanzas, NewMap} = lists:foldl(fun process_action/2,
                                              {[], Map}, Stanzas),
     lists:foreach(fun(Stanza) ->
-        From = get_attr(<<"from">>, Stanza),
-        To = get_attr(<<"to">>, Stanza),
+        From = snatch_xml:get_attr(<<"from">>, Stanza),
+        To = snatch_xml:get_attr(<<"to">>, Stanza),
         Via = #via{jid = From, exchange = To, claws = ?MODULE},
         snatch:received(Stanza, Via)
     end, ProcessedStanzas),
@@ -260,7 +260,7 @@ parse_file(Test) ->
             ?debugFmt("~n~n---------------~n~s~n~p~n~n", [File, Error]),
             erlang:halt(2)
     end,
-    Cleaned = clean_spaces(Parsed),
+    Cleaned = snatch_xml:clean_spaces(Parsed),
     lists:foldl(fun(XmlEl, #functional{steps = Steps} = F) ->
         case parse(XmlEl) of
             [#step{}|_] = NewSteps ->
@@ -270,54 +270,6 @@ parse_file(Test) ->
             [] -> F
         end
     end, #functional{}, Cleaned#xmlel.children).
-
-clean_spaces(#xmlel{children = []} = XmlEl) ->
-    XmlEl;
-clean_spaces(#xmlel{children = Children} = XmlEl) ->
-    C = lists:filtermap(fun
-        ({xmlcdata, Content}) -> trim(Content) =/= <<>>;
-        (#xmlel{} = X) -> {true, clean_spaces(X)}
-    end, Children),
-    XmlEl#xmlel{children = C}.
-
-trim(Text) ->
-    re:replace(Text, "^\\s+|\\s+$", "", [{return, binary}, global]).
-
-get_cdata(#xmlel{children = Children}) ->
-    get_cdata(Children, <<>>).
-
-get_cdata([{xmlcdata, C}|Children], CData) ->
-    get_cdata(Children, <<CData/binary, C/binary>>);
-get_cdata([#xmlel{children = []}|Children], CData) ->
-    get_cdata(Children, CData);
-get_cdata([#xmlel{children = C}|Children], CData) ->
-    get_cdata(Children, get_cdata(C, CData));
-get_cdata([], CData) ->
-    CData.
-
-get_attr(Name, #xmlel{} = XmlEl) when is_binary(Name) ->
-    get_attr(Name, XmlEl, undefined).
-
-get_attr(Name, #xmlel{attrs = Attrs}, Default) when is_binary(Name) ->
-    case lists:keyfind(Name, 1, Attrs) of
-        false -> Default;
-        {Name, Value} -> Value
-    end.
-
-get_attr_atom(Name, #xmlel{} = XmlEl) ->
-    get_attr_atom(Name, XmlEl, undefined).
-
-get_attr_atom(Name, #xmlel{attrs = Attrs}, Default) when is_atom(Default) ->
-    case lists:keyfind(Name, 1, Attrs) of
-        false -> Default;
-        {Name, Value} -> binary_to_atom(Value, utf8)
-    end.
-
-get_attr_int(Name, #xmlel{attrs = Attrs}, Default) when is_integer(Default) ->
-    case lists:keyfind(Name, 1, Attrs) of
-        false -> Default;
-        {Name, Value} -> binary_to_integer(Value)
-    end.
 
 parse(#xmlel{name = <<"config">>, children = Configs}) ->
     lists:flatmap(fun
@@ -330,22 +282,22 @@ parse(#xmlel{name = <<"steps">>, children = Steps}) ->
 
 
 parse_step(#xmlel{children = Actions} = Step) ->
-    Timeout = get_attr_int(<<"timeout">>, Step, ?DEFAULT_STEP_TIMEOUT),
-    #step{name = get_attr(<<"name">>, Step, <<"noname">>),
+    Timeout = snatch_xml:get_attr_int(<<"timeout">>, Step, ?DEFAULT_STEP_TIMEOUT),
+    #step{name = snatch_xml:get_attr(<<"name">>, Step, <<"noname">>),
           timeout = Timeout,
           actions = lists:map(fun parse_action/1, Actions)}.
 
 parse_action(#xmlel{name = <<"vars">>, children = Vars}) ->
     Map = lists:foldl(fun
         (#xmlel{name = <<"value">>, attrs = [{<<"key">>, Key}]} = El, M) ->
-            M#{ Key => get_cdata(El) };
+            M#{ Key => snatch_xml:get_cdata(El) };
         (#xmlel{name = Name}, M) when Name =/= <<"value">> ->
             M
     end, #{}, Vars),
     {vars, Map};
 
 parse_action(#xmlel{name = <<"send">>, children = Send} = Tag) ->
-    case get_attr_atom(<<"via">>, Tag, false) of
+    case snatch_xml:get_attr_atom(<<"via">>, Tag, false) of
         true -> {send_via, Send};
         false -> {send, Send}
     end;
@@ -354,6 +306,6 @@ parse_action(#xmlel{name = <<"expected">>, children = Expected}) ->
     {expected, Expected};
 
 parse_action(#xmlel{name = <<"check">>} = Check) ->
-    M = get_attr_atom(<<"module">>, Check),
-    F = get_attr_atom(<<"function">>, Check),
+    M = snatch_xml:get_attr_atom(<<"module">>, Check),
+    F = snatch_xml:get_attr_atom(<<"function">>, Check),
     {check, {M, F}}.
