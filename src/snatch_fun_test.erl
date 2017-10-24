@@ -60,8 +60,9 @@ start_suite(_Verbose) ->
     ok.
 
 stop_suite() ->
-    ok = application:stop(fast_xml),
-    ok = application:unload(fast_xml),
+    %% FIXME: the fast_xml system is not possible to be stopped or
+    %%        restarted that's the reason because the start is not
+    %%        controlled and in this part fast_xml is not stopped.
     ok = net_kernel:stop(),
     ok.
 

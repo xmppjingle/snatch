@@ -15,6 +15,13 @@ ping_test_() ->
         "xmpp_comp_custom"
     ]).
 
+ping_again_test_() ->
+    %% this test is only to check it's possible to get more than
+    %% one functional test block.
+    snatch_fun_test:check([
+        "xmpp_comp_ping"
+    ]).
+
 check_data([#xmlel{}], [#xmlel{}], Map) ->
     ?assertMatch(#{ <<"data">> := <<"abc">> }, Map),
     ok.
