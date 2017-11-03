@@ -14,6 +14,7 @@
     port :: inet:port_number(),
     socket :: gen_tcp:socket(),
     trimmed = false :: boolean(),
+    adjust_attrs = false :: boolean(),
     stream
 }).
 
@@ -40,26 +41,44 @@ start_link(Name, Params) ->
 start_link(Params) ->
     gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
 
+-type xmpp_conn_state() :: disconnected |
+                           retrying |
+                           connected |
+                           stream_init |
+                           authenticate |
+                           ready.
+
+-spec init(Params :: map()) -> {ok, xmpp_conn_state(), state_data()}.
 init(#{host := Host,
        port := Port,
        domain := Domain,
        password := Password} = Cfg) ->
     Trimmed = maps:get(trimmed, Cfg, false),
+    AddFrom = maps:get(adjust_attrs, Cfg, false),
     {ok, disconnected, #data{host = Host,
                              port = Port,
                              domain = Domain,
                              password = Password,
-                             trimmed = Trimmed}}.
+                             trimmed = Trimmed,
+                             adjust_attrs = AddFrom}}.
 
+-spec callback_mode() -> handle_event_function.
+%% @private
+%% @doc this function is in charge to report to gen_statem the way
+%%      the callbacks should work.
+%% @end
+%% @see gen_statem:callback_mode/0
 callback_mode() -> handle_event_function.
 
 %% API
 
+-spec connect() -> ok.
 connect() -> 
-    gen_statem:cast(?SERVER, connect).
+    ok = gen_statem:cast(?SERVER, connect).
 
+-spec disconnect() -> ok.
 disconnect() ->
-    gen_statem:stop(?SERVER).
+    ok = gen_statem:stop(?SERVER).
 
 %% States
 
@@ -81,7 +100,8 @@ retrying(cast, connect, Data) ->
 
 
 connected(cast, init_stream, #data{} = Data) ->
-    Stream = fxml_stream:new(whereis(?SERVER)),
+    Opts = [no_gen_server],
+    Stream = fxml_stream:new(whereis(?SERVER), infinity, Opts),
     {next_state, stream_init, Data#data{stream = Stream},
      [{next_event, cast, init}]}.
 
@@ -114,8 +134,24 @@ authenticate(cast, {received, #xmlel{name = <<"handshake">>,
                                      children = []}}, Data) ->
     {next_state, ready, Data, []}.
 
+remove_attr(Name, #xmlel{attrs = Attrs} = XmlEl) ->
+    XmlEl#xmlel{attrs = proplists:delete(Name, Attrs)}.
 
-ready(cast, {send, Packet}, #data{socket = Socket}) ->
+add_attr(Name, Value, #xmlel{attrs = Attrs} = XmlEl) ->
+    XmlEl#xmlel{attrs = [{Name, Value}|Attrs]}.
+
+change_attr(Name, Value, XmlEl) ->
+    add_attr(Name, Value, remove_attr(Name, XmlEl)).
+
+ready(cast, {send, Packet, JID, ID}, #data{socket = Socket,
+                                           adjust_attrs = true}) ->
+    XmlEl = fxml_stream:parse_element(Packet),
+    NewXmlEl = change_attr(<<"from">>, JID, change_attr(<<"id">>, ID, XmlEl)),
+    NewPacket = fxml:element_to_binary(NewXmlEl),
+    gen_tcp:send(Socket, NewPacket),
+    {keep_state_and_data, []};
+
+ready(cast, {send, Packet, _JID, _ID}, #data{socket = Socket}) ->
     gen_tcp:send(Socket, Packet),
     {keep_state_and_data, []};
 
@@ -144,21 +180,19 @@ handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data)
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs} = Packet},
-             _State, Data) ->
+handle_event(info, {xmlstreamstart, _Name, _Attribs} = Packet, _State, Data) ->
     {keep_state, Data, [{next_event, cast, {received, Packet}}]};
-handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State,
+handle_event(info, {xmlstreamend, _Name}, _State,
              #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamerror, _Error}}, _State,
+handle_event(info, {xmlstreamerror, _Error}, _State,
              #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State,
-             Data) ->
+handle_event(info, {xmlstreamelement, Packet}, _State, Data) ->
     {keep_state, Data,[{next_event, cast, {received, Packet}}]};
 handle_event(Type, Content, State, Data) ->
     ?MODULE:State(Type, Content, Data).
@@ -169,8 +203,8 @@ terminate(_Reason, _StateName, _StateData) ->
 send(Data, JID) ->
     send(Data, JID, undefined).
 
-send(Data, _JID, _ID) ->
-    gen_statem:cast(?MODULE, {send, Data}).
+send(Data, JID, ID) ->
+    gen_statem:cast(?MODULE, {send, Data, JID, ID}).
 
 close_stream(Stream) ->
     catch fxml_stream:close(Stream).
