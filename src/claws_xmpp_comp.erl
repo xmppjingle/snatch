@@ -17,7 +17,9 @@
     stream
 }).
 
--export([start_link/1]).
+-type state_data() :: #data{}.
+
+-export([start_link/1, start_link/2]).
 -export([init/1, callback_mode/0, terminate/3]).
 -export([send/2, send/3]).
 
@@ -30,6 +32,11 @@
 
 -define(SERVER, ?MODULE).
 
+-spec start_link(Name :: atom(), Params :: map()) -> {ok, pid()}.
+start_link(Name, Params) ->
+    gen_statem:start({local, Name}, ?MODULE, Params, []).
+
+-spec start_link(Params :: map()) -> {ok, pid()}.
 start_link(Params) ->
     gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
 
