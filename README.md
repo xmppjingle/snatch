@@ -156,5 +156,6 @@ Enjoy!
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_dummy_io.md" class="module">snatch_dummy_io</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_fun_test.md" class="module">snatch_fun_test</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_jid.md" class="module">snatch_jid</a></td></tr>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_router.md" class="module">snatch_router</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_xml.md" class="module">snatch_xml</a></td></tr></table>
 
