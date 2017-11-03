@@ -153,6 +153,8 @@ Enjoy!
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch.md" class="module">snatch</a></td></tr>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_dummy_io.md" class="module">snatch_dummy_io</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_fun_test.md" class="module">snatch_fun_test</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_jid.md" class="module">snatch_jid</a></td></tr></table>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_jid.md" class="module">snatch_jid</a></td></tr>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_xml.md" class="module">snatch_xml</a></td></tr></table>
 

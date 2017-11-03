@@ -44,5 +44,5 @@
 
 ### send/2 ###
 
-`send(PingResponse, X2) -> any()`
+`send(PingResponse, JID) -> any()`
 

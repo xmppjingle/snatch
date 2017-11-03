@@ -1,4 +1,4 @@
 %% encoding: UTF-8
 {application,snatch}.
 {modules,[claws,claws_lp,claws_rabbitmq,claws_xmpp,claws_xmpp_comp,snatch,
-          snatch_fun_test,snatch_jid]}.
+          snatch_dummy_io,snatch_fun_test,snatch_jid,snatch_xml]}.
