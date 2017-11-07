@@ -15,6 +15,7 @@ The built-in claws are:
 - <a href="doc/how-to/claws_xmpp_comp.md">XMPP Component</a>
 - <a href="doc/how-to/claws_lp.md">XMPP over HTTP Long-polling</a>
 - <a href="doc/how-to/claws_rabbitmq.md">XMPP over AMQP</a>
+- <a href="doc/how-to/claws_kafka.md">XMPP over Kafka</a>
 
 Installation
 ------------
