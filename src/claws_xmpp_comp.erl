@@ -143,10 +143,24 @@ add_attr(Name, Value, #xmlel{attrs = Attrs} = XmlEl) ->
 change_attr(Name, Value, XmlEl) ->
     add_attr(Name, Value, remove_attr(Name, XmlEl)).
 
+change_attrs(Fields, XmlEl) ->
+    lists:foldl(fun
+        ({_Field, <<"unknown">>}, TempXmlEl) ->
+            TempXmlEl;
+        ({_Field, Value}, TempXmlEl) when is_atom(Value) ->
+            TempXmlEl;
+        ({Field, Value}, TempXmlEl) ->
+            change_attr(Field, Value, TempXmlEl)
+    end, XmlEl, Fields).
+
 ready(cast, {send, Packet, JID, ID}, #data{socket = Socket,
-                                           adjust_attrs = true}) ->
+                                           adjust_attrs = true,
+                                           domain = Domain}) ->
     XmlEl = fxml_stream:parse_element(Packet),
-    NewXmlEl = change_attr(<<"from">>, JID, change_attr(<<"id">>, ID, XmlEl)),
+    Fields = [{<<"to">>, JID},
+              {<<"from">>, Domain},
+              {<<"id">>, ID}],
+    NewXmlEl = change_attrs(Fields, XmlEl),
     NewPacket = fxml:element_to_binary(NewXmlEl),
     gen_tcp:send(Socket, NewPacket),
     {keep_state_and_data, []};

@@ -28,7 +28,7 @@ The params passed inside of the map for the `start_link/1` function are:
 - `password` the password to perform the authentication.
 - `domain` the XMPP domain where the component registered. This will be used for the JID composition.
 - `trimmed` is a special (an optional) option that let you to do more processing in the snatch part. If you configure as `true` the system will remove all of the empty *cdata* entries (only with spaces and/or line feeds).
-- `adjust_attrs` is a special (an optional) option that let us to change the `from` and `id` attributes before to send the packet to the XMPP Server, based on the information received from `send/3` function.
+- `adjust_attrs` is a special (an optional) option that let us to change the `from`, `to` and `id` attributes before to send the packet to the XMPP Server, based on the information received from `send/3` function. Note that the `from` is retrieved from the domain stored in the claw.
 
 The claw is following different states to perform the connection. The claw is automatically performing this activity in a simple and fast way:
 
