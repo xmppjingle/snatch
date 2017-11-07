@@ -22,17 +22,26 @@ __Behaviours:__ [`snatch`](snatch.md).
 
 ### handle_info/2 ###
 
-`handle_info(Info, PID) -> any()`
+<pre><code>
+handle_info(Info::term(), PID::pid() | atom()) -&gt; {noreply, pid() | atom()}
+</code></pre>
+<br />
 
 <a name="init-1"></a>
 
 ### init/1 ###
 
-`init(X1) -> any()`
+<pre><code>
+init(X1::[pid() | atom()]) -&gt; {ok, pid() | atom()}
+</code></pre>
+<br />
 
 <a name="terminate-2"></a>
 
 ### terminate/2 ###
 
-`terminate(Reason, PID) -> any()`
+<pre><code>
+terminate(Reason::any(), PID::pid() | atom()) -&gt; ok
+</code></pre>
+<br />
 
