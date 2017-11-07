@@ -107,13 +107,13 @@ send_message_test() ->
 
 send_adjusted_attributes_message_test() ->
     {ok, Apps, LSocket, Socket} = connect(false, true),
-    ok = claws_xmpp_comp:send(<<"<message type='chat' to='user@example.com'><body>Hi</body></message>">>,
-                              <<"irc.example.com">>,
+    ok = claws_xmpp_comp:send(<<"<message type='chat'><body>Hi</body></message>">>,
+                              <<"user@example.com">>,
                               <<"msg1">>),
-    ?assertMatch([{tcp, _, <<"<message from='irc.example.com' "
-                                      "id='msg1' "
-                                      "type='chat' "
-                                      "to='user@example.com'>", _/binary>>}],
+    ?assertMatch([{tcp, _, <<"<message id='msg1' "
+                                      "from='news.example.com' "
+                                      "to='user@example.com' "
+                                      "type='chat'>", _/binary>>}],
                  get_all([])),
     ok = disconnect(Apps, LSocket, Socket),
     ok.
