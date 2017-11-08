@@ -29,12 +29,17 @@ recv() ->
     end.
 
 connect() ->
+    connect(false, false).
+
+connect(Trimmed, AdjustAttrs) ->
     {ok, Apps} = application:ensure_all_started(xmpp),
     {ok, LSocket, Port} = listen(),
     Params = #{host => {127,0,0,1},
                port => Port,
                domain => <<"news.example.com">>,
-               password => <<"secret">>},
+               password => <<"secret">>,
+               trimmed => Trimmed,
+               adjust_attrs => AdjustAttrs},
     {ok, _PID} = claws_xmpp_comp:start_link(Params),
     ok = claws_xmpp_comp:connect(),
     {ok, Socket} = accept(LSocket),
@@ -100,6 +105,19 @@ send_message_test() ->
     ok = disconnect(Apps, LSocket, Socket),
     ok.
 
+send_adjusted_attributes_message_test() ->
+    {ok, Apps, LSocket, Socket} = connect(false, true),
+    ok = claws_xmpp_comp:send(<<"<message type='chat'><body>Hi</body></message>">>,
+                              <<"user@example.com">>,
+                              <<"msg1">>),
+    ?assertMatch([{tcp, _, <<"<message id='msg1' "
+                                      "from='news.example.com' "
+                                      "to='user@example.com' "
+                                      "type='chat'>", _/binary>>}],
+                 get_all([])),
+    ok = disconnect(Apps, LSocket, Socket),
+    ok.
+
 received_error_message_test() ->
     {ok, Apps, LSocket, Socket} = connect(),
     true = register(snatch, self()),
@@ -121,8 +139,23 @@ received_stream_end_test() ->
 received_message_test() ->
     {ok, Apps, LSocket, Socket} = connect(),
     true = register(snatch, self()),
-    ok = gen_tcp:send(Socket, <<"<message type='chat' to='news.example.com'><body>Hi</body></message>">>),
-    ?assertMatch([{'$gen_cast', {received, #xmlel{}, #via{}}}], get_all([])),
+    ok = gen_tcp:send(Socket, <<"<message type='chat' to='news.example.com'>
+                                     <body>Hi</body>
+                                 </message>">>),
+    ?assertMatch([{'$gen_cast', {received, #xmlel{children = [_CData1,#xmlel{name = <<"body">>},_CData2]}, #via{}}}],
+                 get_all([])),
+    ok = disconnect(Apps, LSocket, Socket),
+    true = unregister(snatch),
+    ok.
+
+received_message_trimmed_test() ->
+    {ok, Apps, LSocket, Socket} = connect(true, false),
+    true = register(snatch, self()),
+    ok = gen_tcp:send(Socket, <<"<message type='chat' to='news.example.com'>
+                                     <body>Hi</body>
+                                 </message>">>),
+    ?assertMatch([{'$gen_cast', {received, #xmlel{children = [#xmlel{name = <<"body">>}]}, #via{}}}],
+                 get_all([])),
     ok = disconnect(Apps, LSocket, Socket),
     true = unregister(snatch),
     ok.

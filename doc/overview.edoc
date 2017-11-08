@@ -15,11 +15,12 @@ The built-in claws are:
 - <a href="doc/how-to/claws_xmpp_comp.md">XMPP Component</a>
 - <a href="doc/how-to/claws_lp.md">XMPP over HTTP Long-polling</a>
 - <a href="doc/how-to/claws_rabbitmq.md">XMPP over AMQP</a>
+- <a href="doc/how-to/claws_kafka.md">XMPP over Kafka</a>
 
 Installation
 ------------
 
-The system requires OTP 19+ because we use <a href="http://erlang.org/doc/design_principles/statem.html">gen_statem</a> and remove the `code_change/3' and `terminate/2'. For OTP 19+ those callbacks are optional.
+The system requires OTP 19+ because we use <a href="http://erlang.org/doc/design_principles/statem">gen_statem</a> and remove the `code_change/3' and `terminate/2'. For OTP 19+ those callbacks are optional.
 
 In the same way we prefer to use <a href="http://www.rebar3.org">rebar3</a> instead of older versions. To install snatch only needs:
 
@@ -116,6 +117,11 @@ The packet should be a valid XML construction. Your application is in charge to 
 For example:
 
 <pre lang="erlang"><![CDATA[snatch:send(<<"<presence/>">>).]]></pre>
+
+Testing
+-------
+
+There are a framework to test XMPP easily. For further information: <a href="doc/testing.html">testing framework</a>.
 
 Troubleshooting
 ---------------

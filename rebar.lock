@@ -3,22 +3,32 @@
   {git,"git://github.com/jbrisbin/amqp_client.git",
        {ref,"d50aec00b94f0766a048b4eceaf25ddfdeeb1d86"}},
   0},
+ {<<"brod">>,
+  {git,"git://github.com/klarna/brod.git",
+       {ref,"d1e7bc80dadfa3a19c460fced9df1e9702ecca2d"}},
+  0},
  {<<"fast_xml">>,
   {git,"https://github.com/processone/fast_xml",
        {ref,"4fb4f1df0da4d10ca8c86c32aa84cb2229ac0b39"}},
   1},
+ {<<"kafka_protocol">>,{pkg,<<"kafka_protocol">>,<<"1.1.0">>},1},
  {<<"p1_utils">>,{pkg,<<"p1_utils">>,<<"1.0.9">>},1},
  {<<"rabbit_common">>,
   {git,"https://github.com/jbrisbin/rabbit_common.git",
        {ref,"80814606ae23cc820c74e443383e192cd69ec030"}},
   1},
+ {<<"snappyer">>,{pkg,<<"snappyer">>,<<"1.2.1">>},2},
  {<<"stringprep">>,{pkg,<<"stringprep">>,<<"1.0.9">>},1},
+ {<<"supervisor3">>,{pkg,<<"supervisor3">>,<<"1.1.5">>},1},
  {<<"xmpp">>,
   {git,"git://github.com/manuel-rubio/xmpp.git",
        {ref,"c5b7770323d50630d0804b45a70c74c60bb6d42f"}},
   0}]}.
 [
 {pkg_hash,[
+ {<<"kafka_protocol">>, <<"817C07A6339CBFB32D1F20A588353BF8D9A8944DF296EB2E930360B83760C171">>},
  {<<"p1_utils">>, <<"C33C230EFBEB4DCC02911161E3CB1A93231A92DF15E3FC97DE655A9271A26D9F">>},
- {<<"stringprep">>, <<"9182BA39931CD1DB528B8883CAD0D63530ABE2BF21835D26CEC2F9AF8BC00BE0">>}]}
+ {<<"snappyer">>, <<"06C5F5C8AFE80BA38E94E1CA1BD9253DE95D8F2C85B08783E8D0F63815580556">>},
+ {<<"stringprep">>, <<"9182BA39931CD1DB528B8883CAD0D63530ABE2BF21835D26CEC2F9AF8BC00BE0">>},
+ {<<"supervisor3">>, <<"5F3C487A6EBA23DE0E64C06E93EFA0ECA06F40324A6412C1318C77ACA6DA8424">>}]}
 ].

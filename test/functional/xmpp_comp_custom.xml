@@ -1,0 +1,34 @@
+<functional>
+    <config>
+        <snatch module="snatch_fun_test_tests"/>
+    </config>
+
+    <steps>
+        <step name="custom query">
+            <vars>
+                <value key="id">test_bot</value>
+                <value key="user">bob@localhost/pc</value>
+                <value key="component">alice.localhost</value>
+            </vars>
+            <send via="true">
+                <iq type="get"
+                    from="{{user}}"
+                    to="{{component}}"
+                    id="{{id}}">
+                    <query xmlns="urn:custom"/>
+                </iq>
+            </send>
+            <expected>
+                <iq type="result"
+                    to="{{user}}"
+                    from="{{component}}"
+                    id="{{id}}">
+                    <query xmlns="urn:custom">
+                        <item>{{data}}</item>
+                    </query>
+                </iq>
+            </expected>
+            <check module="snatch_fun_test_tests" function="check_data"/>
+        </step>
+    </steps>
+</functional>

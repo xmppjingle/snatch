@@ -18,11 +18,12 @@ The built-in claws are:
 - [XMPP Component](doc/how-to/claws_xmpp_comp.md)
 - [XMPP over HTTP Long-polling](doc/how-to/claws_lp.md)
 - [XMPP over AMQP](doc/how-to/claws_rabbitmq.md)
+- [XMPP over Kafka](doc/how-to/claws_kafka.md)
 
 Installation
 ------------
 
-The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem.md) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
+The system requires OTP 19+ because we use [gen_statem](http://erlang.org/doc/design_principles/statem) and remove the `code_change/3` and `terminate/2`. For OTP 19+ those callbacks are optional.
 
 In the same way we prefer to use [rebar3](http://www.rebar3.org) instead of older versions. To install snatch only needs:
 
@@ -130,6 +131,11 @@ For example:
 snatch:send(<<"<presence/>">>).
 ```
 
+Testing
+-------
+
+There are a framework to test XMPP easily. For further information: [testing framework](doc/testing.md).
+
 Troubleshooting
 ---------------
 
@@ -143,10 +149,14 @@ Enjoy!
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="claws.md" class="module">claws</a></td></tr>
+<tr><td><a href="claws_kafka.md" class="module">claws_kafka</a></td></tr>
 <tr><td><a href="claws_lp.md" class="module">claws_lp</a></td></tr>
 <tr><td><a href="claws_rabbitmq.md" class="module">claws_rabbitmq</a></td></tr>
 <tr><td><a href="claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
 <tr><td><a href="claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
 <tr><td><a href="snatch.md" class="module">snatch</a></td></tr>
-<tr><td><a href="snatch_jid.md" class="module">snatch_jid</a></td></tr></table>
+<tr><td><a href="snatch_fun_test.md" class="module">snatch_fun_test</a></td></tr>
+<tr><td><a href="snatch_jid.md" class="module">snatch_jid</a></td></tr>
+<tr><td><a href="snatch_router.md" class="module">snatch_router</a></td></tr>
+<tr><td><a href="snatch_xml.md" class="module">snatch_xml</a></td></tr></table>
 

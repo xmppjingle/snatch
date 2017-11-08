@@ -12,7 +12,7 @@
                 callback :: module(),
                 substate :: term()}).
 
--export([start_link/3, stop/0]).
+-export([start_link/2, start_link/3, stop/0]).
 -export([send/3, send/2, send/1, received/1, received/2, connected/1,
          disconnected/1]).
 
@@ -27,6 +27,15 @@
           {noreply, State :: term()} |
           {stop, Reason :: atom(), State :: term()}.
 -callback terminate(Reason :: atom(), State :: term()) -> ok.
+
+
+-spec start_link(claws(), pid() | atom()) -> {ok, pid()} | {error, any()}.
+%% @doc starts the server using snatch as registered name, using
+%%      Claws param to know what kind of handling of connection to use
+%%      and PID or Process Name for receive the information comming
+%%      from the claws.
+start_link(Claws, PIDorName) when is_pid(PIDorName) orelse is_atom(PIDorName) ->
+    start_link(Claws, snatch_router, [PIDorName]).
 
 
 -spec start_link(claws(), module(), [term()]) -> {ok, pid()} | {error, any()}.

@@ -30,7 +30,10 @@ claws() = claws_rabbitmq | claws_xmpp | claws_xmpp_comp
 adding the route to know where to send the next data.</td></tr><tr><td valign="top"><a href="#send-1">send/1</a></td><td>send Data to the external connection using the default claw
 configured at start of snatch and <code><<"unknown">></code> as JID.</td></tr><tr><td valign="top"><a href="#send-2">send/2</a></td><td>send Data to the external connection using a claw based on the JID
 passed as a param.</td></tr><tr><td valign="top"><a href="#send-3">send/3</a></td><td>send data to the external connection using a claw based on the JID
-passed as a param.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>starts the server using snatch as registered name, using
+passed as a param.</td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td>starts the server using snatch as registered name, using
+Claws param to know what kind of handling of connection to use
+and PID or Process Name for receive the information comming
+from the claws.</td></tr><tr><td valign="top"><a href="#start_link-3">start_link/3</a></td><td>starts the server using snatch as registered name, using
 Claws param to know what kind of handling of connection to use
 and Module for the callbacks to send the received information.</td></tr><tr><td valign="top"><a href="#stop-0">stop/0</a></td><td>stops the snatch server.</td></tr><tr><td valign="top"><a href="#terminate-2">terminate/2</a></td><td></td></tr></table>
 
@@ -154,6 +157,20 @@ send(Data::term(), JID::<a href="#type-jid">jid()</a>, ID::binary()) -&gt; ok
 
 send data to the external connection using a claw based on the JID
 passed as a param. The ID is sent directly to the claw with the data.
+
+<a name="start_link-2"></a>
+
+### start_link/2 ###
+
+<pre><code>
+start_link(Claws::<a href="#type-claws">claws()</a>, PIDorName::pid() | atom()) -&gt; {ok, pid()} | {error, any()}
+</code></pre>
+<br />
+
+starts the server using snatch as registered name, using
+Claws param to know what kind of handling of connection to use
+and PID or Process Name for receive the information comming
+from the claws.
 
 <a name="start_link-3"></a>
 

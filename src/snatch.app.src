@@ -10,6 +10,10 @@
                     xmpp,
                     amqp_client,
                     rabbit_common,
-                    p1_utils]},
-    {env, []}
+                    p1_utils,
+                    brod]},
+    {env, []},
+    {maintainers, ["Thiago Camargo", "Manuel Rubio"]},
+    {licenses, ["Apache License 2.1"]},
+    {links, [{"Github", "https://github.com/manuel-rubio/snatch"}]}
 ]}.
