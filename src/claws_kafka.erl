@@ -63,6 +63,12 @@ handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
 
 
+handle_cast({received, #kafka_message{key = _Key, value = Data}, _Partition},
+            #{raw := true} = Opts) ->
+    Via = #via{claws = ?MODULE},
+    snatch:received(Data, Via),
+    {noreply, Opts};
+
 handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
             #{trimmed := true} = Opts) ->
     case fxml_stream:parse_element(XML) of
