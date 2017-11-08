@@ -16,4 +16,4 @@ sleep 1
 bin/kafka-server-start.sh config/server.properties &
 sleep 5
 
-export KAFKA_DIR="$(pwd)/kafka_$KAFKA_VERSION"
+mv kafka_$KAFKA_VERSION /tmp/kafka
