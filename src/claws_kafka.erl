@@ -3,7 +3,8 @@
 -behaviour(gen_server).
 -behaviour(claws).
 
--export([start_link/1]).
+-export([start_link/1,
+         stop/1]).
 % gen_server callbacks
 -export([init/1,
          handle_call/3,
@@ -26,6 +27,10 @@ start_link(Params) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
 
+stop(PID) ->
+    ok = gen_server:stop(PID).
+
+
 subscriber_callback(Partition, Msg, CallbackState) ->
     gen_server:cast(?MODULE, {received, Msg, Partition}),
     {ok, ack, CallbackState}.
@@ -40,17 +45,18 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
     ConsumerConfig = [{begin_offset, earliest}],
     CommitOffsets = [],
     SubscriberCallbackFun = fun subscriber_callback/3,
-    lists:foreach(fun({InTopic, InPartitions}) ->
-        brod_topic_subscriber:start_link(?KAFKA_CLIENT,
-                                         InTopic,
-                                         InPartitions,
-                                         ConsumerConfig,
-                                         CommitOffsets,
-                                         _MessageType = message,
-                                         SubscriberCallbackFun,
-                                         _CallbackState = self())
+    PIDs = lists:map(fun({InTopic, InPartitions}) ->
+        {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
+                                                     InTopic,
+                                                     InPartitions,
+                                                     ConsumerConfig,
+                                                     CommitOffsets,
+                                                     _MessageType = message,
+                                                     SubscriberCallbackFun,
+                                                     _CallbackState = self()),
+        PID
     end, InTopics),
-    {ok, Opts}.
+    {ok, Opts#{pids => PIDs}}.
 
 
 handle_call(_Request, _From, State) ->
@@ -99,7 +105,10 @@ handle_info(_Info, Opts) ->
     {noreply, Opts}.
 
 
-terminate(_Reason, _Opts) ->
+terminate(_Reason, #{pids := PIDs}) ->
+    ok = lists:foreach(fun(PID) ->
+        ok = brod_topic_subscriber:stop(PID)
+    end, PIDs),
     ok = brod:stop_client(?KAFKA_CLIENT),
     ok.
 

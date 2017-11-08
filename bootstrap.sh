@@ -1,13 +1,19 @@
 #!/bin/bash
 
-apt-get install -y tmux wget default-jdk net-tools build-essential
+KAFKA_VERSION="2.11-0.11.0.1"
 
-wget http://apache.cs.uu.nl/kafka/0.11.0.1/kafka_2.11-0.11.0.1.tgz
-tar xzf kafka_2.11-0.11.0.1.tgz
-cd kafka_2.11-0.11.0.1
+apt-get install -y tmux wget \
+                        default-jdk \
+                        net-tools \
+                        build-essential \
+                        psmisc
+
+wget http://apache.cs.uu.nl/kafka/0.11.0.1/kafka_$KAFKA_VERSION.tgz
+tar xzf kafka_$KAFKA_VERSION.tgz
+cd kafka_$KAFKA_VERSION
 bin/zookeeper-server-start.sh config/zookeeper.properties &
 sleep 1
 bin/kafka-server-start.sh config/server.properties &
 sleep 5
-bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic xmpp.in
-bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic xmpp.out
+
+export KAFKA_DIR="$(pwd)/kafka_$KAFKA_VERSION"
