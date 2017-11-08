@@ -16,4 +16,5 @@ sleep 1
 bin/kafka-server-start.sh config/server.properties &
 sleep 5
 
+cd ..
 mv kafka_$KAFKA_VERSION /tmp/kafka
