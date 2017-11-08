@@ -3,7 +3,6 @@
 
 -behaviour(gen_server).
 
--include_lib("xmpp/include/xmpp.hrl").
 -include("snatch.hrl").
 
 -type claws() :: claws_rabbitmq | claws_xmpp | claws_xmpp_comp.
@@ -28,6 +27,7 @@
           {stop, Reason :: atom(), State :: term()}.
 -callback terminate(Reason :: atom(), State :: term()) -> ok.
 
+-type jid() :: binary().
 
 -spec start_link(claws(), pid() | atom()) -> {ok, pid()} | {error, any()}.
 %% @doc starts the server using snatch as registered name, using

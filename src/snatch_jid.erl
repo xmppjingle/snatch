@@ -3,28 +3,34 @@
 
 -export([is_full/1, to_bare/1]).
 
--include_lib("xmpp/include/xmpp.hrl").
 
-
--spec is_full(#jid{} | binary()) -> boolean().
+-spec is_full(binary()) -> boolean().
 %% @doc returns true if the JID is a full JID, false otherwise.
-is_full(#jid{resource = <<>>}) ->
-    false;
-
 is_full(JID) when is_binary(JID) -> 
-    is_full(jid:decode(JID));
-
-is_full(#jid{}) ->
-    true;
-
-is_full(_) ->
-    false.
+    case parse(JID) of
+        {_, _, <<>>} -> false;
+        {_, _, _} -> true;
+        {error, enojid} -> false
+    end.
 
 
--spec to_bare(#jid{} | binary()) -> binary().
+-spec to_bare(binary()) -> binary().
 %% @doc converts JID to a bare JID in binary format.
-to_bare(#jid{user = User, server = Domain}) ->
-    <<User/binary, "@", Domain/binary>>;
+to_bare(JID) ->
+    {Node, Server, _} = parse(JID),
+    <<Node/binary, "@", Server/binary>>.
 
-to_bare(JID) when is_binary(JID) ->
-    to_bare(jid:decode(JID)).
+
+-spec parse(JID :: binary()) ->
+      {binary(), binary(), binary()} | {error, enojid}.
+%% @doc parse a binary to a {node, server, resource} tuple.
+parse(JID) ->
+    Opts = [{capture, all, binary}],
+    case re:run(JID, "^([^@]+)@([^/]+)(/(.*))?$", Opts) of
+        {match, [_, Node, Server]} ->
+            {Node, Server, <<>>};
+        {match, [_, Node, Server, _, Res]} ->
+            {Node, Server, Res};
+        nomatch ->
+            {error, enojid}
+    end.

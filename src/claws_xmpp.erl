@@ -2,9 +2,7 @@
 -behaviour(gen_statem).
 -behaviour(claws).
 
--compile(export_all).
-
--include_lib("xmpp/include/xmpp.hrl").
+-include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
 
 -record(data, {
@@ -18,9 +16,21 @@
     stream
 }).
 
--export([start_link/1]).
--export([init/1, callback_mode/0]).
--export([send/2]).
+-export([start_link/1, connect/0, disconnect/0]).
+-export([init/1,
+         callback_mode/0,
+         handle_event/4,
+         code_change/4,
+         terminate/3]).
+-export([disconnected/3,
+         retrying/3,
+         connected/3,
+         stream_init/3,
+         authenticate/3,
+         bind/3,
+         binding/3,
+         binded/3]).
+-export([send/2, send/3]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?>"
                    "<stream:stream to='", D/binary, "' xmlns='jabber:client' "
@@ -179,6 +189,12 @@ handle_event(Type, Content, State, Data) ->
         _ -> 
             error_logger:error_msg("Unknown Function: ~p~n", [State])
     end.
+
+terminate(_Reason, _StateName, _StateData) ->
+    ok.
+
+code_change(_OldVsn, State, Data, _Extra) ->
+    {ok, State, Data}.
 
 send(Data, _JID) ->
     gen_statem:cast(?MODULE, {send, Data}).
