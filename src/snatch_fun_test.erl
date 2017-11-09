@@ -90,7 +90,7 @@ run_start(#functional{config = Config}) ->
                 ModuleBin ->
                     Module = binary_to_atom(ModuleBin, utf8),
                     {ok, _PID} = snatch:start_link(?MODULE, Module, [])
-            end,
+            end
         end}].
 
 run_steps(#functional{steps = Steps}) ->
