@@ -82,9 +82,15 @@ get_cfg(Name, Config) ->
 run_start(#functional{config = Config}) ->
     [{"start",
         fun() ->
-            Module = binary_to_atom(get_cfg(snatch, Config), utf8),
             true = register(?TEST_PROCESS, self()),
-            {ok, _PID} = snatch:start_link(?MODULE, Module, [])
+            case get_cfg(snatch, Config) of
+                {router, ModuleBin} ->
+                    Module = binary_to_atom(ModuleBin, utf8),
+                    {ok, _PID} = snatch:start_link(?MODULE, Module);
+                ModuleBin ->
+                    Module = binary_to_atom(ModuleBin, utf8),
+                    {ok, _PID} = snatch:start_link(?MODULE, Module, [])
+            end,
         end}].
 
 run_steps(#functional{steps = Steps}) ->
@@ -274,7 +280,9 @@ parse_file(Test) ->
 parse(#xmlel{name = <<"config">>, children = Configs}) ->
     lists:flatmap(fun
         (#xmlel{name = <<"snatch">>, attrs = [{<<"module">>, Name}]}) ->
-            [{snatch, Name}]
+            [{snatch, Name}];
+        (#xmlel{name = <<"snatch">>, attrs = [{<<"router">>, Name}]}) ->
+            [{snatch, {router, Name}}]
     end, Configs);
 
 parse(#xmlel{name = <<"steps">>, children = Steps}) ->
