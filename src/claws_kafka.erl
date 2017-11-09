@@ -37,11 +37,15 @@ subscriber_callback(Partition, Msg, CallbackState) ->
 
 
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
-       in_topics := InTopics,
-       out_topic := OutTopic} = Opts) ->
+       in_topics := InTopics} = Opts) ->
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
-    ProdConfig = [],
-    ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig),
+    case maps:get(out_topic, Opts, undefined) of
+        undefined ->
+            ok;
+        OutTopic ->
+            ProdConfig = [],
+            ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
+    end,
     ConsumerConfig = [{begin_offset, earliest}],
     CommitOffsets = [],
     SubscriberCallbackFun = fun subscriber_callback/3,
