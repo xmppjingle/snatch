@@ -6,6 +6,7 @@
 -include("snatch.hrl").
 
 -export([start_link/1,
+         stop/0,
          request/1,
          request/2,
          request/3,
@@ -28,6 +29,9 @@
 
 start_link(Params) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Params, []).
+
+stop() ->
+    gen_server:stop(?MODULE).
 
 request(URI) ->
     gen_server:cast(?MODULE, {request, get, URI, [], <<>>}).
