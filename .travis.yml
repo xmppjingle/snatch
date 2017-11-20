@@ -4,6 +4,8 @@ before_install: "sudo ./bootstrap.sh"
 install: "sudo pip install codecov"
 after_success: "codecov"
 sudo: true
+env:
+- KAFKA_DIR=/tmp/kafka
 otp_release:
 - 20.0
 - 19.3

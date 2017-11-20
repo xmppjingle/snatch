@@ -36,12 +36,60 @@ xmpp_conn_state() = disconnected | retrying | connected | stream_init | authenti
 ## Function Index ##
 
 
-<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#send-2">send/2</a></td><td></td></tr><tr><td valign="top"><a href="#send-3">send/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td></td></tr><tr><td valign="top"><a href="#terminate-3">terminate/3</a></td><td></td></tr></table>
+<table width="100%" border="1" cellspacing="0" cellpadding="2" summary="function index"><tr><td valign="top"><a href="#authenticate-3">authenticate/3</a></td><td></td></tr><tr><td valign="top"><a href="#code_change-4">code_change/4</a></td><td></td></tr><tr><td valign="top"><a href="#connect-0">connect/0</a></td><td></td></tr><tr><td valign="top"><a href="#connected-3">connected/3</a></td><td></td></tr><tr><td valign="top"><a href="#disconnect-0">disconnect/0</a></td><td></td></tr><tr><td valign="top"><a href="#disconnected-3">disconnected/3</a></td><td></td></tr><tr><td valign="top"><a href="#handle_event-4">handle_event/4</a></td><td></td></tr><tr><td valign="top"><a href="#init-1">init/1</a></td><td></td></tr><tr><td valign="top"><a href="#ready-3">ready/3</a></td><td></td></tr><tr><td valign="top"><a href="#retrying-3">retrying/3</a></td><td></td></tr><tr><td valign="top"><a href="#send-2">send/2</a></td><td></td></tr><tr><td valign="top"><a href="#send-3">send/3</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td></td></tr><tr><td valign="top"><a href="#start_link-2">start_link/2</a></td><td></td></tr><tr><td valign="top"><a href="#stream_init-3">stream_init/3</a></td><td></td></tr><tr><td valign="top"><a href="#terminate-3">terminate/3</a></td><td></td></tr></table>
 
 
 <a name="functions"></a>
 
 ## Function Details ##
+
+<a name="authenticate-3"></a>
+
+### authenticate/3 ###
+
+`authenticate(X1, X2, Data) -> any()`
+
+<a name="code_change-4"></a>
+
+### code_change/4 ###
+
+`code_change(OldVsn, State, Data, Extra) -> any()`
+
+<a name="connect-0"></a>
+
+### connect/0 ###
+
+<pre><code>
+connect() -&gt; ok
+</code></pre>
+<br />
+
+<a name="connected-3"></a>
+
+### connected/3 ###
+
+`connected(X1, X2, Data) -> any()`
+
+<a name="disconnect-0"></a>
+
+### disconnect/0 ###
+
+<pre><code>
+disconnect() -&gt; ok
+</code></pre>
+<br />
+
+<a name="disconnected-3"></a>
+
+### disconnected/3 ###
+
+`disconnected(Type, X2, Data) -> any()`
+
+<a name="handle_event-4"></a>
+
+### handle_event/4 ###
+
+`handle_event(Type, Packet, State, Data) -> any()`
 
 <a name="init-1"></a>
 
@@ -51,6 +99,18 @@ xmpp_conn_state() = disconnected | retrying | connected | stream_init | authenti
 init(Params::#{}) -&gt; {ok, <a href="#type-xmpp_conn_state">xmpp_conn_state()</a>, <a href="#type-state_data">state_data()</a>}
 </code></pre>
 <br />
+
+<a name="ready-3"></a>
+
+### ready/3 ###
+
+`ready(X1, X2, Data) -> any()`
+
+<a name="retrying-3"></a>
+
+### retrying/3 ###
+
+`retrying(X1, X2, Data) -> any()`
 
 <a name="send-2"></a>
 
@@ -81,6 +141,12 @@ start_link(Params::#{}) -&gt; {ok, pid()}
 start_link(Name::atom(), Params::#{}) -&gt; {ok, pid()}
 </code></pre>
 <br />
+
+<a name="stream_init-3"></a>
+
+### stream_init/3 ###
+
+`stream_init(X1, X2, Data) -> any()`
 
 <a name="terminate-3"></a>
 

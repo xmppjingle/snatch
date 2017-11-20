@@ -2,7 +2,7 @@
 -compile([warnings_as_errors, debug_info]).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("xmpp/include/xmpp.hrl").
+-include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
 
 -define(AUTH, <<"<stream:stream "
@@ -32,7 +32,7 @@ connect() ->
     connect(false, false).
 
 connect(Trimmed, AdjustAttrs) ->
-    {ok, Apps} = application:ensure_all_started(xmpp),
+    {ok, Apps} = application:ensure_all_started(fast_xml),
     {ok, LSocket, Port} = listen(),
     Params = #{host => {127,0,0,1},
                port => Port,
@@ -69,15 +69,18 @@ disconnect(Apps, LSocket, Socket) ->
     ok = gen_tcp:close(Socket),
     ok = gen_tcp:close(LSocket),
     ok = claws_xmpp_comp:disconnect(),
-    lists:foreach(fun(App) ->
-        ok = application:stop(App),
-        ok = application:unload(App)
+    lists:foreach(fun
+        (fast_xml) ->
+            ok;
+        (App) ->
+            ok = application:stop(App),
+            ok = application:unload(App)
     end, Apps),
     clean(),
     ok.
 
 error_connect_test() ->
-    {ok, Apps} = application:ensure_all_started(xmpp),
+    {ok, Apps} = application:ensure_all_started(fast_xml),
     {ok, LSocket, Port} = listen(),
     Params = #{host => {127,0,0,1},
                port => Port,

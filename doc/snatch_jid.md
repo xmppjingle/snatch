@@ -21,7 +21,7 @@
 ### is_full/1 ###
 
 <pre><code>
-is_full(Jid::#jid{} | binary()) -&gt; boolean()
+is_full(JID::binary()) -&gt; boolean()
 </code></pre>
 <br />
 
@@ -32,7 +32,7 @@ returns true if the JID is a full JID, false otherwise.
 ### to_bare/1 ###
 
 <pre><code>
-to_bare(Jid::#jid{} | binary()) -&gt; binary()
+to_bare(JID::binary()) -&gt; binary()
 </code></pre>
 <br />
 

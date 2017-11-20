@@ -21,6 +21,16 @@ __Behaviours:__ [`gen_server`](gen_server.md).
 claws() = claws_rabbitmq | claws_xmpp | claws_xmpp_comp
 </code></pre>
 
+
+
+
+### <a name="type-jid">jid()</a> ###
+
+
+<pre><code>
+jid() = binary()
+</code></pre>
+
 <a name="index"></a>
 
 ## Function Index ##

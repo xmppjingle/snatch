@@ -1,41 +1,10 @@
--module(snatch_fun_test_tests).
+-module(snatch_dummy).
 
--compile([warnings_as_errors, debug_info]).
-
--export([init/1, terminate/2, handle_info/2]).
--export([check_data/3]).
+-export([start_link/0, handle_info/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
-
-ping_test_() ->
-    snatch_fun_test:check([
-        "xmpp_comp_ping",
-        "xmpp_comp_custom"
-    ]).
-
-ping_again_test_() ->
-    %% this test is only to check it's possible to get more than
-    %% one functional test block.
-    snatch_fun_test:check([
-        "xmpp_comp_ping"
-    ]).
-
-ping_router_test_() ->
-    {setup, fun() ->
-                snatch_dummy:start_link()
-            end,
-            fun(_) ->
-                snatch_dummy ! stop
-            end,
-            snatch_fun_test:check([
-                "xmpp_comp_ping_router"
-            ])}.
-
-check_data([#xmlel{}], [#xmlel{}], Map) ->
-    ?assertMatch(#{ <<"data">> := <<"abc">> }, Map),
-    ok.
 
 -define(JID_USER, <<"bob@localhost/pc">>).
 -define(JID_COMP, <<"alice.localhost">>).
@@ -84,11 +53,21 @@ check_data([#xmlel{}], [#xmlel{}], Map) ->
                                    ]}
                           ]}).
 
-init([]) ->
-    {ok, []}.
+%% NOTE: We can use here a gen_server but I think it's overkill for
+%%       the test I want to run.
+start_link() ->
+    PID = spawn_link(fun loop/0),
+    true = register(?MODULE, PID),
+    {ok, PID}.
 
-terminate(_Reason, _State) ->
-    ok.
+loop() ->
+    receive
+        stop ->
+            ok;
+        Data ->
+            handle_info(Data, []),
+            loop()
+    end.
 
 handle_info({received, ?QUERY_REQUEST, #via{}}, []) ->
     snatch:send(fxml:element_to_binary(?QUERY_RESPONSE)),

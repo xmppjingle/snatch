@@ -62,7 +62,6 @@ You can use this template to develop your own modules:
 -behaviour(snatch).
 
 -include_lib("snatch/include/snatch.hrl").
--include_lib("xmpp/include/xmpp.hrl").
 
 -export([init/1, handle_info/2, terminate/2]).
 
@@ -86,6 +85,10 @@ handle_info({received, _Packet}, State) ->
 terminate(_Reason, _State) ->
     ok.]]></pre>
 
+Note that if you're using <a href="https://rebar3.org">rebar3</a> you can use this command instead to create your template:
+
+<pre><![CDATA[./rebar3 new snatch name=my_own_module]]></pre>
+
 The call to the `init/1' function is performed each time the snatch system is started and `terminate/2' when the system is finished properly. Note that in case of internal errors this code will not be called.
 
 The callback `handle_info/2' will be called when a message arrives to snatch.
@@ -102,6 +105,15 @@ The `#via{}' record has the following information:
 - `exchange' *(only for AMQP)* says the exchange in use for the element.
 - `claws' is the module used to receive the message.
 - `id' the identification of the packet.
+
+Router / Listener
+-----------------
+
+Although the previous (*Callbacks*) section let you to create a router or listener for all of the events received from the claws, maybe you want to receive in your gen_server or gen_statem those events instead of create a module only for that.
+
+In this case you can use the `snatch_router` and instead of use `snatch:start_link/3` you can use `snatch:start_link/2`. This way the second parameter to use for snatch will be a registered name or a PID.
+
+All of the previous events will be send to that process using this way.
 
 Sending
 -------

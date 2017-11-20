@@ -2,9 +2,7 @@
 -behaviour(gen_statem).
 -behaviour(claws).
 
--compile(export_all).
-
--include_lib("xmpp/include/xmpp.hrl").
+-include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
 
 -record(data, {
@@ -20,8 +18,18 @@
 
 -type state_data() :: #data{}.
 
--export([start_link/1, start_link/2]).
--export([init/1, callback_mode/0, terminate/3]).
+-export([start_link/1, start_link/2, connect/0, disconnect/0]).
+-export([init/1,
+         callback_mode/0,
+         terminate/3,
+         code_change/4,
+         handle_event/4]).
+-export([disconnected/3,
+         retrying/3,
+         connected/3,
+         stream_init/3,
+         authenticate/3,
+         ready/3]).
 -export([send/2, send/3]).
 
 -define(INIT(D),
@@ -213,6 +221,9 @@ handle_event(Type, Content, State, Data) ->
 
 terminate(_Reason, _StateName, _StateData) ->
     ok.
+
+code_change(_OldVsn, State, Data, _Extra) ->
+    {ok, State, Data}.
 
 send(Data, JID) ->
     send(Data, JID, undefined).

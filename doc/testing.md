@@ -39,6 +39,16 @@ The functional testing for snatch is as follow:
 
 The test gives you information about what snatch module will be in use (this case we used `snatch_fun_test_tests` because this is retrieved from the snatch tests suite).
 
+Note that if you want to start your own process to receive the events instead of the implementation of the *snatch* behaviour, you can configure the *snatch* section in this way:
+
+```xml
+<config>
+    <snatch router="my_router"/>
+</config>
+```
+
+The name in use (`my_router` in this example) should be a registered name for the process in charge to receive all of the events.
+
 The next section is `steps`. You can defined as many steps as you need. In this example we defined only one step. Inside we have diferent parts:
 
 - `vars`: let us to define a dictionary. This information could be used in the rest of the sections thru the `{{...}}` syntax.

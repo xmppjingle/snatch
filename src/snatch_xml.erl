@@ -1,7 +1,7 @@
 -module(snatch_xml).
 -compile([warnings_as_errors]).
 
--include_lib("xmpp/include/xmpp.hrl").
+-include_lib("fast_xml/include/fxml.hrl").
 
 -export([clean_spaces/1,
          get_cdata/1,
