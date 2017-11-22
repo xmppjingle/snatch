@@ -43,11 +43,11 @@
 
 -spec start_link(Name :: atom(), Params :: map()) -> {ok, pid()}.
 start_link(Name, Params) ->
-    gen_statem:start({local, Name}, ?MODULE, Params, []).
+    gen_statem:start_link({local, Name}, ?MODULE, Params, []).
 
 -spec start_link(Params :: map()) -> {ok, pid()}.
 start_link(Params) ->
-    gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
+    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
 -type xmpp_conn_state() :: disconnected |
                            retrying |
