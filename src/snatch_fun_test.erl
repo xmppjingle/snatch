@@ -137,7 +137,7 @@ run_action({expected, Stanzas}, {ExpectedStanzas, OldRecvStanzas, Map}) ->
 
 run_action({check, {M, F}}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     ok = apply(M, F, [ExpectedStanzas, ReceivedStanzas, Map]),
-    {NewExpectedStanzas, ReceivedStanzas, Map}.
+    {ExpectedStanzas, ReceivedStanzas, Map}.
 
 process_action(#xmlel{attrs = Attrs, children = Children} = El,
                {ProcessedStanzas, Map}) ->
