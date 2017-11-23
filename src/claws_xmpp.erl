@@ -54,7 +54,7 @@
 -define(SERVER, ?MODULE).
 
 start_link(Params) ->
-    gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
+    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
 init(#{host := Host,
        port := Port,
