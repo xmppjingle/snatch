@@ -50,7 +50,7 @@ start_link(Params) ->
     ssl:start(),
     gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
-init([#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Config]) ->
+init(#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Config) ->
     io:format("~nInitialised push claw :~p",[Config]),
     {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}}.
 
