@@ -32,6 +32,7 @@
 
 
 -define(INIT,
+  %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or fcm. This might change as google finish upgrade to fcm
   <<"<stream:stream to='gcm.googleapis.com' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
 
 
@@ -46,12 +47,10 @@
 -define(SERVER, ?MODULE).
 
 start_link(Params) ->
-    io:format("Starting FCM claw",[]),
     ssl:start(),
     gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
 init(#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Config) ->
-    io:format("~nInitialised push claw :~p",[Config]),
     {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}}.
 
 callback_mode() -> handle_event_function.
@@ -89,41 +88,35 @@ connected(cast, init_stream, #data{} = Data) ->
     {next_state, stream_init, Data#data{stream = Stream},
      [{next_event, cast, init}]}.
 
-stream_init(cast, init, #data{gcs_add = Gcs_add, socket = Socket} = Data) ->
+stream_init(cast, init, #data{socket = Socket} = Data) ->
     ssl:send(Socket, ?INIT),
     {keep_state, Data, []};
 
 stream_init(info, {ssl, _SSLSocket, Message}, Data) ->
-    io:format("~nReceived ssl message in state stream init:~p",[Message]),
     {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
 
 
 authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
                                     socket = Socket} = Data) ->
     B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
-    io:format("~nSending auth sasl :~p~n",[?AUTH_SASL(B64)]),
     ssl:send(Socket, ?AUTH_SASL(B64)),
     {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, Message}, Data) ->
-    io:format("~nReceived ssl message in state authenticate :~p",[Message]),
     {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = Gcs_add,
                        stream = Stream} = Data) ->
     close_stream(Stream),
     NewStream = fxml_stream:new(whereis(?SERVER)),
-    io:format("~nSending :~p",[?INIT]),
     ssl:send(Socket, ?INIT),
     {keep_state, Data#data{stream = NewStream}, []};
 
 bind(info, {ssl, _SSLSock, Message}, #data{socket = Socket} = Data) ->
-  io:format("~nReceived ssl message in state bind :~p",[Message]),
   ssl:send(Socket, ?BIND),
   {next_state, binding, Data, []}.
 
 binding(info, {ssl, _SSLSock, Message}, Data) ->
-  io:format("~nReceived ssl message in state binding :~p",[Message]),
   snatch:connected(?MODULE),
     {next_state, binded, Data, []}.
 
@@ -148,7 +141,6 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
     {keep_state_and_data, []};
 
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
-  io:format("~nReceived ssl message in state binded :~p",[Message]),
   snatch:received(Message),
   {keep_state_and_data, []};
 
