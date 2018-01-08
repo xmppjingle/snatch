@@ -32,12 +32,14 @@
 
 
 -define(INIT,
-  %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or fcm. This might change as google finish upgrade to fcm
-  <<"<stream:stream to='gcm.googleapis.com' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
+  %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or
+  %% fcm. This might change as google finish upgrade to fcm
+  <<"<stream:stream to='gcm.googleapis.com' version='1.0' "
+    "xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
 
 
--define(AUTH_SASL(B64), << "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' "
-                                 "mechanism='PLAIN'>", B64/binary, "</auth>">>).
+-define(AUTH_SASL(B64), <<"<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' "
+                                "mechanism='PLAIN'>", B64/binary, "</auth>">>).
 
 -define(BIND, <<"<iq type='set'>"
                    "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>"
@@ -50,8 +52,14 @@ start_link(Params) ->
     ssl:start(),
     gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
-init(#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Config) ->
-    {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}}.
+init(#{gcs_add := Gcs_add,
+       gcs_port := Gcs_Port,
+       server_id := ServerId,
+       server_key := ServerKey} = _Config) ->
+    {ok, disconnected, #data{gcs_add = Gcs_add,
+                             gcs_port = Gcs_Port,
+                             server_id = ServerId,
+                             server_key = ServerKey}}.
 
 callback_mode() -> handle_event_function.
 
@@ -92,7 +100,7 @@ stream_init(cast, init, #data{socket = Socket} = Data) ->
     ssl:send(Socket, ?INIT),
     {keep_state, Data, []};
 
-stream_init(info, {ssl, _SSLSocket, Message}, Data) ->
+stream_init(info, {ssl, _SSLSocket, _Message}, Data) ->
     {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
 
 
@@ -102,34 +110,38 @@ authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
     ssl:send(Socket, ?AUTH_SASL(B64)),
     {keep_state, Data, []};
 
-authenticate(info, {ssl, _SSLSocket, Message}, Data) ->
+authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
     {next_state, bind, Data, [{next_event, cast, bind}]}.
 
-bind(cast, bind, #data{socket = Socket, gcs_add = Gcs_add,
-                       stream = Stream} = Data) ->
+bind(cast, bind, #data{socket = Socket, stream = Stream} = Data) ->
     close_stream(Stream),
     NewStream = fxml_stream:new(whereis(?SERVER)),
     ssl:send(Socket, ?INIT),
     {keep_state, Data#data{stream = NewStream}, []};
 
-bind(info, {ssl, _SSLSock, Message}, #data{socket = Socket} = Data) ->
-  ssl:send(Socket, ?BIND),
-  {next_state, binding, Data, []}.
+bind(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
+    ssl:send(Socket, ?BIND),
+    {next_state, binding, Data, []}.
 
-binding(info, {ssl, _SSLSock, Message}, Data) ->
-  snatch:connected(?MODULE),
+binding(info, {ssl, _SSLSock, _Message}, Data) ->
+    snatch:connected(?MODULE),
     {next_state, binded, Data, []}.
 
 binded(cast, {send, To, PushMes}, #data{socket = Socket}) ->
 
-    JSONPayload = #{<<"data">> => PushMes, <<"to">> => To, <<"message_id">> => base64:encode(crypto:strong_rand_bytes(6))},
+    JSONPayload = #{<<"data">> => PushMes,
+                    <<"to">> => To,
+                    <<"message_id">> => message_id()},
 
     Payload = {xmlcdata, jsone:encode(JSONPayload)},
-
-    io:format("~nSending payload :~p",[Payload]),
-    Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [Payload]},
-    Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
-    io:format("~nSending push :~p",[Mes]),
+    error_logger:info_msg("Sending payload :~p", [Payload]),
+    Gcm = #xmlel{name = <<"gcm">>,
+                 attrs = [{<<"xmlns">>, <<"google:mobile:data">>}],
+                 children = [Payload]},
+    Mes = #xmlel{name = <<"message">>,
+                 attrs = [{<<"id">>, message_id()}],
+                 children = [Gcm]},
+    error_logger:info_msg("Sending push :~p", [Mes]),
     ssl:send(Socket, fxml:element_to_binary(Mes)),
     {keep_state_and_data, []};
 
@@ -141,8 +153,8 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
     {keep_state_and_data, []};
 
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
-  snatch:received(Message),
-  {keep_state_and_data, []};
+    snatch:received(Message),
+    {keep_state_and_data, []};
 
 binded(cast, _Unknown, _Data) ->
     {keep_state_and_data, []}.
@@ -156,13 +168,16 @@ handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data)
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
+handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State,
+             _Data) ->
     {keep_state_and_data, []};
-handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream = Stream} = Data) ->
+handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State,
+             #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State, #data{stream = Stream} = Data) ->
+handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State,
+             #data{stream = Stream} = Data) ->
     error_logger:error_msg("Stream Error: ~p ~n", [Error]),
     snatch:disconnected(?MODULE),
     close_stream(Stream),
@@ -191,3 +206,6 @@ send(Data, _JID, _ID) ->
 
 close_stream(<<>>) -> ok;
 close_stream(Stream) -> fxml_stream:close(Stream).
+
+message_id() ->
+    base64:encode(crypto:strong_rand_bytes(6)).
