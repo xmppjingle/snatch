@@ -120,9 +120,10 @@ binding(info, {ssl, _SSLSock, Message}, Data) ->
   snatch:connected(?MODULE),
     {next_state, binded, Data, []}.
 
-binded(cast, {send, To, PushMes}, #data{socket = Socket}) ->
+binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
 
-    JSONPayload = #{<<"data">> => PushMes, <<"to">> => To, <<"message_id">> => base64:encode(crypto:strong_rand_bytes(6))},
+    JSONPayload = lists:foldl(
+      fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
     Payload = {xmlcdata, jsone:encode(JSONPayload)},
 
