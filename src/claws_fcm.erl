@@ -121,14 +121,14 @@ binding(info, {ssl, _SSLSock, Message}, Data) ->
     {next_state, binded, Data, []}.
 
 binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
-    lager:info("Received payload :~p",[Payload]),
+    io:format("~nReceived payload :~p",[Payload]),
 
     JSONPayload = lists:foldl(
       fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
     FinalPayload = {xmlcdata, jsone:encode(JSONPayload)},
 
-    lager:info("Sending payload :~p",[FinalPayload]),
+    io:format("Sending payload :~p",[FinalPayload]),
     Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
     Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
     io:format("~nSending push :~p",[Mes]),
