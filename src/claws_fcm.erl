@@ -50,7 +50,7 @@ start_link(Params) ->
     ssl:start(),
     gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
-init(#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Config) ->
+init([#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}]) ->
     {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}}.
 
 callback_mode() -> handle_event_function.
@@ -136,6 +136,7 @@ binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
     {keep_state_and_data, []};
 
 binded(cast, {received, #xmlel{} = Packet}, _Data) ->
+    io:format("~npuscomp received ~p",[Packet]),
     From = snatch_xml:get_attr(<<"from">>, Packet),
     To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
@@ -143,6 +144,7 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
     {keep_state_and_data, []};
 
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
+  io:format("~npuscomp received SSL ~p",[Message]),
   snatch:received(Message),
   {keep_state_and_data, []};
 
