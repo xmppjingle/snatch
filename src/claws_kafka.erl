@@ -46,7 +46,8 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
             ProdConfig = [],
             ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
     end,
-    ConsumerConfig = [{begin_offset, earliest}],
+    ConsumerConfigDef = [{begin_offset, earliest}],
+    ConsumerConfig = maps:get(consumer_config, Opts, ConsumerConfigDef),
     CommitOffsets = [],
     SubscriberCallbackFun = fun subscriber_callback/3,
     PIDs = lists:map(fun({InTopic, InPartitions}) ->
