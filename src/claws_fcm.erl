@@ -25,6 +25,8 @@
   code_change/3,
   terminate/2]).
 
+-export([send/2]).
+
 -define(SERVER, ?MODULE).
 
 -record(state, {
@@ -44,6 +46,8 @@
 -spec(start_link(FCMConfig :: map(), NbWorkers :: integer()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(FCMConfig, NbWorkers) ->
+  application:start(pooler),
+  application:start(fxml),
   gen_server:start_link({local, ?SERVER}, ?MODULE, [FCMConfig, NbWorkers], []).
 
 
@@ -71,16 +75,19 @@ stop() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([FCMConfig, NbWorkers]) ->
-  PoolSpec = {
+  io:format("Starting pool claw with params :~p ibnto pid:~p",[{FCMConfig, NbWorkers}, self()]),
+  PoolSpec = [
     {name, push_pool},
     {worker_module, claws_fcm_worker},
     {size, NbWorkers},
     {max_overflow, 10},
+    {max_count, 10},
+    {init_count, 2},
     {strategy, lifo},
+    {start_mfa, {claws_fcm_worker, start_link, [FCMConfig]}},
     {fcm_conf, FCMConfig}
-  },
+  ],
   pooler:new_pool(PoolSpec),
-  pooler:start(),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -165,3 +172,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+
+send(Data, To) ->
+  P = pooler:take_member(push_pool),
+  gen_statem:cast(P, {send, To, Data}),
+  pooler:return_member(push_pool, P, ok).
+
+
+

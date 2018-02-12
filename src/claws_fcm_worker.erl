@@ -24,11 +24,14 @@
          retrying/3,
          connected/3,
          stream_init/3,
+        wait_for_features/3,
          authenticate/3,
          bind/3,
+    wait_for_binding/3,
+    wait_for_result/3,
          binding/3,
-         binded/3]).
--export([send/2, send/3]).
+         binded/3,
+          drainned/3]).
 
 
 -define(INIT,
@@ -46,12 +49,14 @@
 
 -define(SERVER, ?MODULE).
 
-start_link(Params) ->
+start_link(FCMParams) ->
+    io:format("~nstartlink push claw",[]),
     ssl:start(),
-    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
+    gen_statem:start_link(?MODULE, [FCMParams], []).
 
 init([#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}]) ->
-    {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}}.
+    io:format("~nStarting claw :~p", [#{gcs_add => Gcs_add, gcs_port => Gcs_Port, server_id => ServerId, server_key => ServerKey}]),
+    {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}, [{next_event, cast, connect}]}.
 
 callback_mode() -> handle_event_function.
 
@@ -84,40 +89,71 @@ retrying(cast, connect, Data) ->
     {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
 
 connected(cast, init_stream, #data{} = Data) ->
-    Stream = fxml_stream:new(whereis(?SERVER)),
+    Stream = fxml_stream:new(self()),
     {next_state, stream_init, Data#data{stream = Stream},
      [{next_event, cast, init}]}.
 
 stream_init(cast, init, #data{socket = Socket} = Data) ->
+    io:format("~n--> sending ~p",[?INIT]),
     ssl:send(Socket, ?INIT),
     {keep_state, Data, []};
 
 stream_init(info, {ssl, _SSLSocket, _Message}, Data) ->
-    {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
+    io:format("~nSteam init Reeceived :~p",[_Message]),
+    {next_state, wait_for_features, Data, []}.
+
+
+wait_for_features(info, {ssl, _SSLSocket, _Message}, Data) ->
+  io:format("~nwait_for_features Reeceived :~p",[_Message]),
+  {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
 
 
 authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
                                     socket = Socket} = Data) ->
     B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
-    ssl:send(Socket, ?AUTH_SASL(B64)),
+  io:format("~n--> Authenticate sending ~p",[?AUTH_SASL(B64)]),
+
+  ssl:send(Socket, ?AUTH_SASL(B64)),
     {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
-    {next_state, bind, Data, [{next_event, cast, bind}]}.
+  io:format("~nAuthenticate Reeceived :~p",[_Message]),
+  {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
                        stream = Stream} = Data) ->
     close_stream(Stream),
-    NewStream = fxml_stream:new(whereis(?SERVER)),
+    NewStream = fxml_stream:new(self()),
+    io:format("~n--> bind sending ~p",[?INIT]),
     ssl:send(Socket, ?INIT),
     {keep_state, Data#data{stream = NewStream}, []};
 
-bind(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
+bind(info, {ssl, _SSLSock, _Message}, Data) ->
+  io:format("~nbind Reeceived :~p",[_Message]),
+
+ %% io:format("~n-->sending ~p",[?BIND]),
+  {next_state, wait_for_binding, Data, []}.
+
+
+
+wait_for_binding(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
+  io:format("~nwait_for_binding Reeceived :~p",[_Message]),
+  io:format("~n--> wait_for_binding sending ~p",[?BIND]),
   ssl:send(Socket, ?BIND),
-  {next_state, binding, Data, []}.
+  {next_state, wait_for_result, Data, []}.
+
+
+
+wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
+  io:format("~nwait_for_result Reeceived :~p",[_Message]),
+  {next_state, binded, Data, []}.
+
+
 
 binding(info, {ssl, _SSLSock, _Message}, Data) ->
-  snatch:connected(?MODULE),
+  io:format("~nbinding Reeceived :~p",[_Message]),
+  io:format("~nClaw is connected",[]),
+  snatch:connected(claws_fcm),
     {next_state, binded, Data, []}.
 
 binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
@@ -128,7 +164,7 @@ binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
 
     FinalPayload = {xmlcdata, jsone:encode(JSONPayload)},
 
-    io:format("Sending payload :~p",[FinalPayload]),
+    io:format("~nSending payload :~p",[FinalPayload]),
     Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
     Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
     io:format("~nSending push :~p",[Mes]),
@@ -143,17 +179,28 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
     snatch:received(Packet, Via),
     {keep_state_and_data, []};
 
+binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
+  io:format("~nKEEP ALIVE", []),
+  {keep_state_and_data, []};
+
 
 binded(info, {ssl, _SSLSock, Message}, Data) ->
   DecPak = fxml_stream:parse_element(Message),
   io:format("~npuscomp received SSL ~p on socket ~p",[DecPak, _SSLSock]),
   case DecPak#xmlel.name of
     <<"message">> ->
-      process_fcm_message(Message, Data);
+      case process_fcm_message(DecPak, Data) of
+        ok ->
+          {keep_state_and_data, []};
+        {next_state, State} ->
+          {next_state, State, Data, []};
+        _ ->
+          {keep_state_and_data, []}
+      end;
     _ ->
-      snatch:received(DecPak)
-  end,
-  {keep_state_and_data, []};
+      snatch:received(DecPak),
+      {keep_state_and_data, []}
+  end;
 
 
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
@@ -163,6 +210,12 @@ binded(info, {ssl, _SSLSock, Message}, _Data) ->
 
 binded(cast, _Unknown, _Data) ->
     {keep_state_and_data, []}.
+
+
+drainned(_, {ssl, _SSLSock, Message}, Data) ->
+  io:format("~nFCM claw received ~p in state drainned",[Message]),
+  {stop, normal, Data}.
+
 
 handle_event(info, {tcp, _Socket, Packet}, _State,
              #data{stream = Stream} = Data) ->
@@ -200,11 +253,6 @@ terminate(_Reason, _StateName, _StateData) ->
 code_change(_OldVsn, State, Data, _Extra) ->
     {ok, State, Data}.
 
-send(Data, To) ->
-    gen_statem:cast(?MODULE, {send, To, Data}).
-
-send(Data, _JID, _ID) ->
-    gen_statem:cast(?MODULE, {send, Data}).
 
 close_stream(<<>>) -> ok;
 close_stream(Stream) -> fxml_stream:close(Stream).
@@ -212,13 +260,34 @@ close_stream(Stream) -> fxml_stream:close(Stream).
 
 process_fcm_message(Message, Data) ->
   io:format("~nFCM claw received message from google FCM :~p",[{Message, Data}]),
-  lists:foreach(fun process_message_payload/1, Message#xmlel.name).
+  process_message_payload(lists:nth(1,Message#xmlel.children)).
 
 
-process_message_payload(#xmlel{name = <<"data">>} = Data) ->
-  Payload = jsone:decode(fxml:get_cdata(Data)),
-  io:format("~n Got FCM payload :~p",[Payload]);
+process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
+  io:format("~n==> processing payloadd : ~p",[Data]),
+  Cdata = fxml:get_tag_cdata(Data),
+  io:format("~nCdata : ~p",[Cdata]),
+  Payload = jsone:decode(Cdata),
+  io:format("~n Got FCM payload :~p",[Payload]),
+  process_json_payload(Payload);
 
 
 process_message_payload(El) ->
-  io:format("Received unmanaged payload from Google FCM : ~p",[El]).
+  io:format("Received unmanaged payload from Google FCM : ~p",[El]),
+  ok.
+
+
+process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
+  io:format("~nFCm claw, connection drainned",[]),
+  pooler:remove_pid(self()),
+  {next_state, drainned};
+
+
+process_json_payload(#{<<"message_type">> := <<"nack">>}) ->
+  io:format("~nNACk from FCM",[]),
+  ok;
+
+
+process_json_payload(Unk) ->
+  io:format("~nClaw FCM received unmanaged payload :~p",[Unk]),
+  ok.

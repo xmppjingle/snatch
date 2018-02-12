@@ -6,7 +6,6 @@
                     stdlib,
                     inets,
                     fast_xml,
-                    fast_xml,
                     amqp_client,
                     rabbit_common,
                     p1_utils,
