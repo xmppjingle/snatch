@@ -213,8 +213,13 @@ binded(cast, _Unknown, _Data) ->
 
 
 drainned(_, {ssl, _SSLSock, Message}, Data) ->
-  io:format("~nFCM claw received ~p in state drainned",[Message]),
-  {stop, normal, Data}.
+  io:format("~nFCM claw received SSL ~p in state drainned",[Message]),
+  {stop, normal, Data};
+
+drainned(_, Msg, _Data) ->
+  io:format("~nFCM claw received ~p in state drainned",[Msg]),
+  {keep_state_and_data, []}.
+
 
 
 handle_event(info, {tcp, _Socket, Packet}, _State,
@@ -259,8 +264,15 @@ close_stream(Stream) -> fxml_stream:close(Stream).
 
 
 process_fcm_message(Message, Data) ->
-  io:format("~nFCM claw received message from google FCM :~p",[{Message, Data}]),
-  process_message_payload(lists:nth(1,Message#xmlel.children)).
+  Message_type = proplists:get_value(<<"type">>, Message#xmlel.attrs),
+  case Message_type of
+    <<"error">> ->
+      io:format("~nFCM claw received error from FCM server :~p",[Message]),
+      ok;
+    _ ->
+      io:format("~nFCM claw received message from google FCM :~p",[{Message, Data}]),
+      process_message_payload(lists:nth(1,Message#xmlel.children))
+  end.
 
 
 process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
@@ -282,6 +294,9 @@ process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> :
   pooler:remove_pid(self()),
   {next_state, drainned};
 
+process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
+  io:format("~nACk from FCM",[]),
+  ok;
 
 process_json_payload(#{<<"message_type">> := <<"nack">>}) ->
   io:format("~nNACk from FCM",[]),
