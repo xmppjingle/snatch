@@ -169,6 +169,11 @@ handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data)
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
+handle_event(info, {TCP, _Socket, _Reason}, _State, #data{stream = Stream} = Data)
+        when TCP =:= tcp_closed orelse TCP =:= tcp_error ->
+    snatch:disconnected(?MODULE),
+    close_stream(Stream),
+    {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
     {keep_state_and_data, []};
 handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream = Stream} = Data) ->
