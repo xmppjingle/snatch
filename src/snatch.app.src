@@ -10,6 +10,7 @@
                     rabbit_common,
                     p1_utils,
                     brod,
+                    pooler,
                     ibrowse]},
     {env, []},
     {maintainers, ["Thiago Camargo", "Manuel Rubio"]},
