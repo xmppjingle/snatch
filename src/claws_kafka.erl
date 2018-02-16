@@ -5,16 +5,22 @@
 
 -export([start_link/1,
          stop/1]).
-% gen_server callbacks
+
+%% gen_server callbacks
 -export([init/1,
          handle_call/3,
          handle_cast/2,
          handle_info/2,
          terminate/2,
          code_change/3]).
-% claws callbacks
+
+%% claws callbacks
 -export([send/2,
          send/3]).
+
+%% brod_group_subscriber callbacks
+-export([init/2,
+         handle_message/4]).
 
 -include_lib("brod/include/brod.hrl").
 -include("snatch.hrl").
@@ -31,11 +37,6 @@ stop(PID) ->
     ok = gen_server:stop(PID).
 
 
-subscriber_callback(Partition, Msg, CallbackState) ->
-    gen_server:cast(?MODULE, {received, Msg, Partition}),
-    {ok, ack, CallbackState}.
-
-
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
@@ -46,22 +47,59 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
             ProdConfig = [],
             ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
     end,
-    ConsumerConfigDef = [{begin_offset, earliest}],
-    ConsumerConfig = maps:get(consumer_config, Opts, ConsumerConfigDef),
-    CommitOffsets = [],
     SubscriberCallbackFun = fun subscriber_callback/3,
-    PIDs = lists:map(fun({InTopic, InPartitions}) ->
-        {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
-                                                     InTopic,
-                                                     InPartitions,
-                                                     ConsumerConfig,
-                                                     CommitOffsets,
-                                                     _MessageType = message,
-                                                     SubscriberCallbackFun,
-                                                     _CallbackState = self()),
-        PID
-    end, InTopics),
-    {ok, Opts#{pids => PIDs}}.
+    Subscribers = lists:map(fun (InTopic) -> start_subscriber(InTopic, Opts) end,
+                            InTopics),
+    {ok, Opts#{subscribers => Subscribers}}.
+
+start_subscriber({InTopic, {group, GroupId}}, Opts) ->
+    GroupConfig = maps:get(group_config, Opts, default_group_config()),
+    ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    {ok, PID} = brod_group_subscriber:start_link(?KAFKA_CLIENT, GroupId, [InTopic],
+                                                 GroupConfig, ConsumerConfig,
+                                                 _MessageType = message,
+                                                 _CallbackModule  = ?MODULE,
+                                                 _CallbackInitArg = #{}),
+    {brod_group_subscriber, PID};
+start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
+    ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    CommitOffsets = [],
+    {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
+                                                 InTopic,
+                                                 InPartitions,
+                                                 ConsumerConfig,
+                                                 CommitOffsets,
+                                                 _MessageType = message,
+                                                 fun subscriber_callback/3,
+                                                 _CallbackState = self()),
+    {brod_topic_subscriber, PID}.
+
+
+default_group_config() ->
+    [{offset_commit_policy, commit_to_kafka_v2},
+     {offset_commit_interval_seconds, 5}].
+
+
+default_consumer_config() ->
+    [{begin_offset, earliest}].
+
+
+%% brod_topic_subscriber:cb_fun()
+subscriber_callback(Partition, Msg, CallbackState) ->
+    gen_server:cast(?MODULE, {received, Msg, Partition}),
+    {ok, ack, CallbackState}.
+
+
+%% brod_group_subscriber init/2 impl
+init(_Topic, #{} = SubscriberState) ->
+    {ok, SubscriberState}.
+
+
+%% brod_group_subscriber handle_message/4 impl
+handle_message(_Topic, Partition, Msg, SubscriberState) ->
+    gen_server:cast(?MODULE, {received, Msg, Partition}),
+    %% TODO: Follows subscriber_callback/3, but what if we crash after ack?
+    {ok, ack, SubscriberState}.
 
 
 handle_call(_Request, _From, State) ->
@@ -116,10 +154,10 @@ handle_info(_Info, Opts) ->
     {noreply, Opts}.
 
 
-terminate(_Reason, #{pids := PIDs}) ->
-    ok = lists:foreach(fun(PID) ->
-        ok = brod_topic_subscriber:stop(PID)
-    end, PIDs),
+terminate(_Reason, #{subscribers := Subscribers}) ->
+    ok = lists:foreach(fun({SubscriberMod, PID}) ->
+        ok = SubscriberMod:stop(PID)
+    end, Subscribers),
     ok = brod:stop_client(?KAFKA_CLIENT),
     ok.
 
