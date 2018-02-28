@@ -75,7 +75,7 @@ stop() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([FCMConfig, NbWorkers]) ->
-  io:format("~nStarting pool claw with params :~p",[{FCMConfig, NbWorkers}]),
+  error_logger:info_msg("Starting pool claw with params :~p",[{FCMConfig, NbWorkers}]),
   PoolSpec = [
     {name, push_pool},
     {worker_module, claws_fcm_worker},
