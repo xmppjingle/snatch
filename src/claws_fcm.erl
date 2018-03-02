@@ -25,7 +25,7 @@
   code_change/3,
   terminate/2]).
 
--export([send/2]).
+-export([send/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -173,10 +173,24 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+%% Data is :
+%% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
+%% json fields to send over FCM.
+%%
+%% Ex: [{<<"data">>, <<"Some data">>}, {<<"notification">>,#{<<"title">> => TitleVal, <<"body">> => BodyVal}}]
+%% The To parameter is added to the payload by the claw.
+%%
+%% Data can also be :
+%%
+%% {json_map, Payload}} : In this case, Payload is a map that will be converted to JSON before being sent to google FCM
+%% The token is supposed to be already stored inside the map under the key : "to".
+%%
+%% Ex :
+%%
 
-send(Data, To) ->
+send(Data) ->
   P = pooler:take_member(push_pool),
-  gen_statem:cast(P, {send, To, Data}),
+  gen_statem:cast(P, {send, Data}),
   pooler:return_member(push_pool, P, ok).
 
 

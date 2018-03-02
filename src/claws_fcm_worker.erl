@@ -143,19 +143,24 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
   snatch:connected(claws_fcm),
   {next_state, binded, Data, []}.
 
-binded(cast, {send, To, Payload}, #data{socket = Socket}) ->
+
+
+binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Received request to send push payload :~p",[Payload]),
 
   JSONPayload = lists:foldl(
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
-  FinalPayload = {xmlcdata, jsone:encode(JSONPayload)},
-
-  Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
-  Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
-  error_logger:info_msg("Sending push :~p",[Mes]),
-  ssl:send(Socket, fxml:element_to_binary(Mes)),
+  send_push(jsone:encode(JSONPayload), Socket),
   {keep_state_and_data, []};
+
+
+binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
+  error_logger:info_msg("Received request to send push payload :~p",[Payload]),
+
+  send_push(jsone:encode(Payload), Socket),
+  {keep_state_and_data, []};
+
 
 binded(cast, {received, #xmlel{} = Packet}, _Data) ->
   error_logger:info_msg("Puscomp received ~p",[Packet]),
@@ -246,6 +251,20 @@ code_change(_OldVsn, State, Data, _Extra) ->
 
 close_stream(<<>>) -> ok;
 close_stream(Stream) -> fxml_stream:close(Stream).
+
+
+
+
+-spec(send_push(Payload :: binary(), Socket :: tuple()) -> tuple()).
+send_push(Payload, Socket) ->
+  FinalPayload = {xmlcdata, jsone:encode(Payload)},
+
+  Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
+  Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
+  error_logger:info_msg("Sending push :~p",[Mes]),
+  ssl:send(Socket, fxml:element_to_binary(Mes)),
+  ok.
+
 
 
 process_fcm_message(Message, Data) ->
