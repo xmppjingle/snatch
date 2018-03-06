@@ -1,211 +1,194 @@
+%%%-------------------------------------------------------------------
+%%% @author yan.guiborat
+%%% @copyright (C) 2018
+%%% @doc
+%%%
+%%% @end
+%%% Created : 08. févr. 2018 10:54
+%%%-------------------------------------------------------------------
 -module(claws_fcm).
--behaviour(gen_statem).
--behaviour(claws).
+-author("yan.guiborat").
 
--include_lib("fast_xml/include/fxml.hrl").
+-behaviour(gen_server).
+
+%% API
+-include_lib("ibrowse/include/ibrowse.hrl").
 -include("snatch.hrl").
 
--record(data, {
-    gcs_add :: inet:socket_address(),
-    gcs_port :: inet:port_number(),
-    server_id,
-    server_key,
-    socket :: gen_tcp:socket(),
-    stream
-}).
+-export([start_link/2,
+  stop/0]).
 
--export([start_link/1, connect/0, disconnect/0]).
 -export([init/1,
-         callback_mode/0,
-         handle_event/4,
-         code_change/4,
-         terminate/3]).
--export([disconnected/3,
-         retrying/3,
-         connected/3,
-         stream_init/3,
-         authenticate/3,
-         bind/3,
-         binding/3,
-         binded/3]).
--export([send/2, send/3]).
+  handle_info/2,
+  handle_cast/2,
+  handle_call/3,
+  code_change/3,
+  terminate/2]).
 
-
--define(INIT,
-  %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or
-  %% fcm. This might change as google finish upgrade to fcm
-  <<"<stream:stream to='gcm.googleapis.com' version='1.0' "
-    "xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
-
-
--define(AUTH_SASL(B64), <<"<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' "
-                                "mechanism='PLAIN'>", B64/binary, "</auth>">>).
-
--define(BIND, <<"<iq type='set'>"
-                   "<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>"
-                   "</bind></iq>">>).
-
+-export([send/1]).
 
 -define(SERVER, ?MODULE).
 
-start_link(Params) ->
-    ssl:start(),
-    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
+-record(state, {
+  poolpid :: pid() | undefined
+  }).
 
-init(#{gcs_add := Gcs_add,
-       gcs_port := Gcs_Port,
-       server_id := ServerId,
-       server_key := ServerKey} = _Config) ->
-    {ok, disconnected, #data{gcs_add = Gcs_add,
-                             gcs_port = Gcs_Port,
-                             server_id = ServerId,
-                             server_key = ServerKey}}.
+%%%===================================================================
+%%% API
+%%%===================================================================
 
-callback_mode() -> handle_event_function.
-
-%% API
-
-connect() ->
-    gen_statem:cast(?SERVER, connect).
-
-disconnect() ->
-    gen_statem:cast(?SERVER, disconnect).
-
-%% States
-
-disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
-        when Type =:= cast orelse Type =:= state_timeout ->
-    case ssl:connect(Host, Port, [binary, {active, true}]) of
-        {ok, NewSocket} ->
-            {next_state, connected, Data#data{socket = NewSocket},
-             [{next_event, cast, init_stream}]};
-        Error ->
-            error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
-                                   [Host, Port, Error]),
-            {next_state, retrying, Data, [{next_event, cast, connect}]}
-    end;
-
-disconnected(cast, disconnect, _Data) ->
-    {keep_state_and_data, []}.
-
-retrying(cast, connect, Data) ->
-    {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
-
-connected(cast, init_stream, #data{} = Data) ->
-    Stream = fxml_stream:new(whereis(?SERVER)),
-    {next_state, stream_init, Data#data{stream = Stream},
-     [{next_event, cast, init}]}.
-
-stream_init(cast, init, #data{socket = Socket} = Data) ->
-    ssl:send(Socket, ?INIT),
-    {keep_state, Data, []};
-
-stream_init(info, {ssl, _SSLSocket, _Message}, Data) ->
-    {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the server
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(start_link(FCMConfig :: map(), NbWorkers :: integer()) ->
+  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+start_link(FCMConfig, NbWorkers) ->
+  application:start(pooler),
+  application:start(fxml),
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [FCMConfig, NbWorkers], []).
 
 
-authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
-                                    socket = Socket} = Data) ->
-    B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
-    ssl:send(Socket, ?AUTH_SASL(B64)),
-    {keep_state, Data, []};
 
-authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
-    {next_state, bind, Data, [{next_event, cast, bind}]}.
+stop() ->
+  gen_server:stop(?MODULE).
 
-bind(cast, bind, #data{socket = Socket, stream = Stream} = Data) ->
-    close_stream(Stream),
-    NewStream = fxml_stream:new(whereis(?SERVER)),
-    ssl:send(Socket, ?INIT),
-    {keep_state, Data#data{stream = NewStream}, []};
 
-bind(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
-    ssl:send(Socket, ?BIND),
-    {next_state, binding, Data, []}.
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
 
-binding(info, {ssl, _SSLSock, _Message}, Data) ->
-    snatch:connected(?MODULE),
-    {next_state, binded, Data, []}.
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Initializes the server
+%%
+%% @spec init(Args) -> {ok, State} |
+%%                     {ok, State, Timeout} |
+%%                     ignore |
+%%                     {stop, Reason}
+%% @end
+%%--------------------------------------------------------------------
+-spec(init(Args :: term()) ->
+  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
+  {stop, Reason :: term()} | ignore).
+init([FCMConfig, NbWorkers]) ->
+  error_logger:info_msg("Starting pool claw with params :~p",[{FCMConfig, NbWorkers}]),
+  PoolSpec = [
+    {name, push_pool},
+    {worker_module, claws_fcm_worker},
+    {size, NbWorkers},
+    {max_overflow, 10},
+    {max_count, 10},
+    {init_count, 2},
+    {strategy, lifo},
+    {start_mfa, {claws_fcm_worker, start_link, [FCMConfig]}},
+    {fcm_conf, FCMConfig}
+  ],
+  pooler:new_pool(PoolSpec),
+  {ok, #state{}}.
 
-binded(cast, {send, To, PushMes}, #data{socket = Socket}) ->
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling call messages
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
+    State :: #state{}) ->
+  {reply, Reply :: term(), NewState :: #state{}} |
+  {reply, Reply :: term(), NewState :: #state{}, timeout() | hibernate} |
+  {noreply, NewState :: #state{}} |
+  {noreply, NewState :: #state{}, timeout() | hibernate} |
+  {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
+  {stop, Reason :: term(), NewState :: #state{}}).
+handle_call(_Request, _From, State) ->
+  {reply, ok, State}.
 
-    JSONPayload = #{<<"data">> => PushMes,
-                    <<"to">> => To,
-                    <<"message_id">> => message_id()},
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling cast messages
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_cast(Request :: term(), State :: #state{}) ->
+  {noreply, NewState :: #state{}} |
+  {noreply, NewState :: #state{}, timeout() | hibernate} |
+  {stop, Reason :: term(), NewState :: #state{}}).
+handle_cast(_Request, State) ->
+  {noreply, State}.
 
-    Payload = {xmlcdata, jsone:encode(JSONPayload)},
-    error_logger:info_msg("Sending payload :~p", [Payload]),
-    Gcm = #xmlel{name = <<"gcm">>,
-                 attrs = [{<<"xmlns">>, <<"google:mobile:data">>}],
-                 children = [Payload]},
-    Mes = #xmlel{name = <<"message">>,
-                 attrs = [{<<"id">>, message_id()}],
-                 children = [Gcm]},
-    error_logger:info_msg("Sending push :~p", [Mes]),
-    ssl:send(Socket, fxml:element_to_binary(Mes)),
-    {keep_state_and_data, []};
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling all non call/cast messages
+%%
+%% @spec handle_info(Info, State) -> {noreply, State} |
+%%                                   {noreply, State, Timeout} |
+%%                                   {stop, Reason, State}
+%% @end
+%%--------------------------------------------------------------------
+-spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
+  {noreply, NewState :: #state{}} |
+  {noreply, NewState :: #state{}, timeout() | hibernate} |
+  {stop, Reason :: term(), NewState :: #state{}}).
+handle_info(_Info, State) ->
+  {noreply, State}.
 
-binded(cast, {received, #xmlel{} = Packet}, _Data) ->
-    From = snatch_xml:get_attr(<<"from">>, Packet),
-    To = snatch_xml:get_attr(<<"to">>, Packet),
-    Via = #via{jid = From, exchange = To, claws = ?MODULE},
-    snatch:received(Packet, Via),
-    {keep_state_and_data, []};
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any
+%% necessary cleaning up. When it returns, the gen_server terminates
+%% with Reason. The return value is ignored.
+%%
+%% @spec terminate(Reason, State) -> void()
+%% @end
+%%--------------------------------------------------------------------
+-spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
+    State :: #state{}) -> term()).
+terminate(_Reason, _State) ->
+  ok.
 
-binded(info, {ssl, _SSLSock, Message}, _Data) ->
-    snatch:received(Message),
-    {keep_state_and_data, []};
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Convert process state when code is changed
+%%
+%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% @end
+%%--------------------------------------------------------------------
+-spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
+    Extra :: term()) ->
+  {ok, NewState :: #state{}} | {error, Reason :: term()}).
+code_change(_OldVsn, State, _Extra) ->
+  {ok, State}.
 
-binded(cast, _Unknown, _Data) ->
-    {keep_state_and_data, []}.
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
 
-handle_event(info, {tcp, _Socket, Packet}, _State,
-             #data{stream = Stream} = Data) ->
-    NewStream = fxml_stream:parse(Stream, Packet),
-    {keep_state, Data#data{stream = NewStream}, []};
-handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data)
-        when TCP =:= tcp_closed orelse TCP =:= tcp_error ->
-    snatch:disconnected(?MODULE),
-    close_stream(Stream),
-    {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State,
-             _Data) ->
-    {keep_state_and_data, []};
-handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State,
-             #data{stream = Stream} = Data) ->
-    snatch:disconnected(?MODULE),
-    close_stream(Stream),
-    {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State,
-             #data{stream = Stream} = Data) ->
-    error_logger:error_msg("Stream Error: ~p ~n", [Error]),
-    snatch:disconnected(?MODULE),
-    close_stream(Stream),
-    {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {'$gen_event', {xmlstreamelement, Packet}}, _State, Data) ->
-    {keep_state, Data,[{next_event, cast, {received, Packet}}]};
-handle_event(Type, Content, State, Data) ->
-    case erlang:function_exported(?MODULE, State, 3) of
-        true ->
-            ?MODULE:State(Type, Content, Data);
-        _ ->
-            error_logger:error_msg("Unknown Function: ~p~n", [State])
-    end.
+%% Data is :
+%% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
+%% json fields to send over FCM.
+%%
+%% Ex: [{<<"data">>, <<"Some data">>}, {<<"notification">>,#{<<"title">> => TitleVal, <<"body">> => BodyVal}}]
+%% The To parameter is added to the payload by the claw.
+%%
+%% Data can also be :
+%%
+%% {json_map, Payload}} : In this case, Payload is a map that will be converted to JSON before being sent to google FCM
+%% The token is supposed to be already stored inside the map under the key : "to".
+%%
+%% Ex :
+%%
 
-terminate(_Reason, _StateName, _StateData) ->
-    ok.
-
-code_change(_OldVsn, State, Data, _Extra) ->
-    {ok, State, Data}.
-
-send(Data, To) ->
-    gen_statem:cast(?MODULE, {send, To, Data}).
-
-send(Data, _JID, _ID) ->
-    gen_statem:cast(?MODULE, {send, Data}).
-
-close_stream(<<>>) -> ok;
-close_stream(Stream) -> fxml_stream:close(Stream).
-
-message_id() ->
-    base64:encode(crypto:strong_rand_bytes(6)).
+send(Data) ->
+  P = pooler:take_member(push_pool),
+  gen_statem:cast(P, {send, Data}),
+  pooler:return_member(push_pool, P, ok).
