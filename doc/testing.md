@@ -112,13 +112,15 @@ The idea is the same as the Erlang variables. If the data exists in the dictiona
 Send
 ----
 
-This section let us to send XMPP stanzas. This simulates the interaction from the XMPP Server to the component we're developing. It's the normal interaction.
+This section let us to send XMPP stanzas or CDATA content. This simulates the interaction from the XMPP Server to the component we're developing. It's the normal interaction. But we can even simulate when we are receiving information from other claws like REST or Kafka.
 
-When we receive a stanza, it's translated to `#xmlel{}` record and passed to the `handle_info/2` functions implemented in your code. The configuration should be done in the first part of the document (in the `config` section).
+When we receive a stanza, it's translated to `#xmlel{}` record and passed to the `handle_info/2` functions implemented in your code. The configuration should be done in the first part of the document (in the `config` section). But if the information isn't a XML stanza then we receive the binary as is.
 
 The code could reply to that code or not. That depends on your implementation. You can check if everything went well checking the response in case of this is sent back (using `snatch:send/2-3`) or checking internally your system. See `check` section below for more information about this.
 
-Via has an optional attribute called `via`. This attribute let you to decide if the send for `handle_info/2` implementation from *snatch* should use the send `{received, #xmlel{}}` or `{received, #xmlel{}, #via{}}` instead, depending on if `via` is `false` or `true` respectively.
+Send has an optional attribute called `via`. This attribute let you to decide if the send for `handle_info/2` implementation from *snatch* should use the send `{received, #xmlel{}}` or `{received, #xmlel{}, #via{}}` instead, depending on if `via` is `false` or `true` respectively.
+
+We can also use `type` (another optional attribute). This attribute is configured by default as `xml` and then the internal process as explained above in this section is applied. But if we use `json` or `raw` the content is passed as binary. This is useful when we want to send or expect for information like it was received by kafka or other claws.
 
 Expected
 --------
@@ -126,6 +128,8 @@ Expected
 The expected section is intended to check the expected stanzas after a sent is performed. All of the stanzas in the expected tag should arrive, no matter the order.
 
 If one stanza arrives and it's not expected or one expected stanza doesn't arrive an error is triggered and the tests are aborted.
+
+Expected has the attribute `type` same as `send` tag. The default value is `xml` and we can specify `json` or `raw` to get a binary instead.
 
 Check
 -----
@@ -139,6 +143,8 @@ check_data([#xmlel{}], [#xmlel{}], Map) ->
     ?assertMatch(#{ <<"data">> := <<"abc">> }, Map),
     ok.
 ```
+
+Note that the stanzas received and expected could be binaries as well.
 
 The function implemented will receive three params:
 
@@ -171,6 +177,16 @@ So, for example, if you want to perform a check or running a specific code, then
     <expected>
         <iq type="get".../>
     </expected>
+</step>
+```
+
+Using binaries we can see an example as follow:
+
+```xml
+<step name="birthday service">
+    <check module="birthday_tests" function="launch_system"/>
+    <expected><![CDATA[{"get": "birthday"}]]></expected>
+    <send><![CDATA[{"result": "tomorrow"}]]></send>
 </step>
 ```
 

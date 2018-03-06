@@ -1,0 +1,23 @@
+<functional>
+    <config>
+        <snatch module="snatch_fun_test_tests"/>
+    </config>
+
+    <steps>
+        <step name="custom query">
+            <vars>
+                <value key="id">test_bot</value>
+                <value key="user">bob@localhost/pc</value>
+                <value key="component">alice.localhost</value>
+            </vars>
+            <send via="true" type="json"><![CDATA[
+                {"message": "hello everybody",
+                 "from": "<%user%>",
+                 "to": "<%component%>",
+                 "id": "<%id%>"}
+            ]]></send>
+            <expected type="json"><![CDATA[{"status": "ok"}]]></expected>
+            <check module="snatch_fun_test_tests" function="check_json"/>
+        </step>
+    </steps>
+</functional>

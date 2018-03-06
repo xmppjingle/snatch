@@ -112,8 +112,8 @@ run_action({vars, VarsMap}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     NewMap = maps:merge(Map, VarsMap),
     {ExpectedStanzas, ReceivedStanzas, NewMap};
 
-run_action({send_via, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
-    {ProcessedStanzas, NewMap} = lists:foldl(fun process_action/2,
+run_action({send_via, xml, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
+    {ProcessedStanzas, NewMap} = lists:foldl(fun process_xml_action/2,
                                              {[], Map}, Stanzas),
     lists:foreach(fun(Stanza) ->
         From = snatch_xml:get_attr(<<"from">>, Stanza),
@@ -123,24 +123,49 @@ run_action({send_via, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     end, ProcessedStanzas),
     {ExpectedStanzas, ReceivedStanzas, NewMap};
 
-run_action({send, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
-    {ProcessedStanzas, NewMap} = lists:foldl(fun process_action/2,
+run_action({send_via, Type, Text}, {ExpectedStanzas, ReceivedStanzas, Map})
+        when Type =:= json orelse
+             Type =:= raw ->
+    ProcessedText = process_text_action(Text, Map),
+    Via = #via{claws = ?MODULE},
+    snatch:received(ProcessedText, Via),
+    {ExpectedStanzas, ReceivedStanzas, Map};
+
+run_action({send, xml, Stanzas}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
+    {ProcessedStanzas, NewMap} = lists:foldl(fun process_xml_action/2,
                                              {[], Map}, Stanzas),
     lists:foreach(fun snatch:received/1, ProcessedStanzas),
     {ExpectedStanzas, ReceivedStanzas, NewMap};
 
-run_action({expected, Stanzas}, {ExpectedStanzas, OldRecvStanzas, Map}) ->
+run_action({send, Type, Text}, {ExpectedStanzas, ReceivedStanzas, Map})
+        when Type =:= json orelse
+             Type =:= raw ->
+    ProcessedText = process_text_action(Text, Map),
+    snatch:received(ProcessedText),
+    {ExpectedStanzas, ReceivedStanzas, Map};
+
+run_action({expected, xml, Stanzas}, {ExpectedStanzas, OldRecvStanzas, Map}) ->
     ReceivedStanzas = receive_stanzas([]),
+    NewMap = check_stanzas(ReceivedStanzas, Stanzas, Map),
     NewExpectedStanzas = ExpectedStanzas ++ Stanzas,
-    NewMap = check_stanzas(ReceivedStanzas, NewExpectedStanzas, Map),
-    {NewExpectedStanzas, OldRecvStanzas ++ ReceivedStanzas, NewMap};
+    NewReceivedStanzas = OldRecvStanzas ++ ReceivedStanzas,
+    {NewExpectedStanzas, NewReceivedStanzas, NewMap};
+
+run_action({expected, Type, Text}, {ExpectedStanzas, OldRecvStanzas, Map})
+        when Type =:= json orelse
+             Type =:= raw ->
+    ReceivedRaw = receive_raw([]),
+    NewMap = check_stanzas(ReceivedRaw, [Text], Map),
+    NewExpectedStanzas = ExpectedStanzas ++ [Text],
+    NewReceivedStanzas = OldRecvStanzas ++ ReceivedRaw,
+    {NewExpectedStanzas, NewReceivedStanzas, NewMap};
 
 run_action({check, {M, F}}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
     ok = apply(M, F, [ExpectedStanzas, ReceivedStanzas, Map]),
     {ExpectedStanzas, ReceivedStanzas, Map}.
 
-process_action(#xmlel{attrs = Attrs, children = Children} = El,
-               {ProcessedStanzas, Map}) ->
+process_xml_action(#xmlel{attrs = Attrs, children = Children} = El,
+                   {ProcessedStanzas, Map}) ->
     ProcessedAttrs = lists:map(fun
         ({AttrKey, <<"{{",_/binary>> = Value}) ->
             RE = <<"^\\{\\{([^}]+)\\}\\}$">>,
@@ -166,16 +191,33 @@ process_action(#xmlel{attrs = Attrs, children = Children} = El,
                     CData
             end;
         (#xmlel{} = Child) ->
-            hd(element(1, process_action(Child, {[], Map})))
+            hd(element(1, process_xml_action(Child, {[], Map})))
     end, Children),
     Stanza = El#xmlel{attrs = ProcessedAttrs, children = ProcessedChildren},
     {ProcessedStanzas ++ [Stanza], Map}.
 
+process_text_action(CData, Map) ->
+    RE = <<"<%([^%]+[^>])%>">>,
+    RunOpts = [global, {capture, all, binary}],
+    case re:run(CData, RE, RunOpts) of
+        {match, Keys} ->
+            lists:foldl(fun([ReplaceKey, Key], CD) ->
+                Val = maps:get(Key, Map),
+                RepOpts = [global],
+                iolist_to_binary(re:replace(CD, ReplaceKey, Val, RepOpts))
+            end, CData, Keys);
+        nomatch ->
+            CData
+    end.
+
 check_stanzas([], [], Map) ->
     Map;
 check_stanzas([], ExpectedStanzas, Map) ->
-    XMLStanza = lists:foldl(fun(ExpectedStanza, Text) ->
-        <<Text/binary, (fxml:element_to_binary(ExpectedStanza))/binary, "\n">>
+    XMLStanza = lists:foldl(fun
+        (ExpectedText, Text) when is_binary(ExpectedText) ->
+            <<Text/binary, ExpectedText/binary, "\n">>;
+        (ExpectedStanza, Text) ->
+            <<Text/binary, (fxml:element_to_binary(ExpectedStanza))/binary, "\n">>
     end, <<>>, ExpectedStanzas),
     ?debugFmt("~n~n-----------~nMissing stanza(s):~n~s~n"
               "~nMap => ~p~n-----------~n",
@@ -192,6 +234,11 @@ check_stanzas([RecvStanza|ReceivedStanzas], ExpectedStanzas, Map) ->
             ExpectedStanza
     end, false, ExpectedStanzas),
     case ExpectedStanza of
+        false when is_binary(RecvStanza) ->
+            ?debugFmt("~n~n-----------~nUnexpected text:~n~s~n"
+                      "~nMap => ~p~n-----------~n",
+                      [RecvStanza, Map]),
+            erlang:halt(1);
         false ->
             XMLStanza = fxml:element_to_binary(RecvStanza),
             ?debugFmt("~n~n-----------~nUnexpected stanza:~n~s~n"
@@ -245,6 +292,14 @@ receive_updates(Updates) ->
         {value, _, _} = Value -> receive_updates([Value|Updates])
     after ?TIMEOUT_RECEIVE_ALL ->
         Updates
+    end.
+
+receive_raw(ReceivedRaw) ->
+    receive
+        {send, Raw} ->
+            receive_raw([Raw|ReceivedRaw])
+    after ?TIMEOUT_RECEIVE_ALL ->
+        ReceivedRaw
     end.
 
 receive_stanzas(ReceivedStanzas) ->
@@ -306,13 +361,32 @@ parse_action(#xmlel{name = <<"vars">>, children = Vars}) ->
     {vars, Map};
 
 parse_action(#xmlel{name = <<"send">>, children = Send} = Tag) ->
-    case snatch_xml:get_attr_atom(<<"via">>, Tag, false) of
-        true -> {send_via, Send};
-        false -> {send, Send}
+    Type = case snatch_xml:get_attr_atom(<<"via">>, Tag, false) of
+        true -> send_via;
+        false -> send
+    end,
+    case snatch_xml:get_attr_atom(<<"type">>, Tag, xml) of
+        xml ->
+            {Type, xml, Send};
+        json ->
+            CData = snatch_xml:get_cdata(Tag),
+            {Type, json, CData};
+        raw ->
+            CData = snatch_xml:get_cdata(Tag),
+            {Type, raw, CData}
     end;
 
-parse_action(#xmlel{name = <<"expected">>, children = Expected}) ->
-    {expected, Expected};
+parse_action(#xmlel{name = <<"expected">>, children = Expected} = Tag) ->
+    case snatch_xml:get_attr_atom(<<"type">>, Tag, xml) of
+        xml ->
+            {expected, xml, Expected};
+        json ->
+            CData = snatch_xml:get_cdata(Tag),
+            {expected, json, CData};
+        raw ->
+            CData = snatch_xml:get_cdata(Tag),
+            {expected, raw, CData}
+    end;
 
 parse_action(#xmlel{name = <<"check">>} = Check) ->
     M = snatch_xml:get_attr_atom(<<"module">>, Check),
