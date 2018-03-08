@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author yan.guiborat
-%%% @copyright (C) 2018, <COMPANY>
+%%% @copyright (C) 2018
 %%% @doc
 %%%
 %%% @end
@@ -204,6 +204,3 @@ handle_push_request(Data) ->
   P = pooler:take_member(push_pool),
   gen_statem:cast(P, {send, Data}),
   pooler:return_member(push_pool, P, ok).
-
-
-

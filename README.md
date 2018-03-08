@@ -163,9 +163,11 @@ Enjoy!
 
 <table width="100%" border="0" summary="list of modules">
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws.md" class="module">claws</a></td></tr>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_fcm.md" class="module">claws_fcm</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_kafka.md" class="module">claws_kafka</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_lp.md" class="module">claws_lp</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_rabbitmq.md" class="module">claws_rabbitmq</a></td></tr>
+<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_rest.md" class="module">claws_rest</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
 <tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch.md" class="module">snatch</a></td></tr>
