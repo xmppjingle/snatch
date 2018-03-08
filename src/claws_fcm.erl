@@ -76,6 +76,12 @@ stop() ->
   {stop, Reason :: term()} | ignore).
 init([FCMConfig, NbWorkers]) ->
   error_logger:info_msg("Starting pool claw with params :~p",[{FCMConfig, NbWorkers}]),
+
+  %% Start the push queue with rate control
+  application:start(jobs),
+  jobs:add_queue(push_queue,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+
+  %% start a pool of process to consume from the push queue
   PoolSpec = [
     {name, push_pool},
     {worker_module, claws_fcm_worker},
@@ -88,6 +94,8 @@ init([FCMConfig, NbWorkers]) ->
     {fcm_conf, FCMConfig}
   ],
   pooler:new_pool(PoolSpec),
+
+
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -189,6 +197,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%
 
 send(Data) ->
+  jobs:run(http_requests,fun()-> handle_push_request(Data) end).
+
+
+handle_push_request(Data) ->
   P = pooler:take_member(push_pool),
   gen_statem:cast(P, {send, Data}),
   pooler:return_member(push_pool, P, ok).

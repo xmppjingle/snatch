@@ -35,6 +35,14 @@
   drainned/3]).
 
 
+
+%% FCM NACK codes
+
+-define(DEVICE_MESSAGE_RATE_EXCEEDED, <<"DEVICE_MESSAGE_RATE_EXCEEDED">>).
+
+
+%% Defines for FCM xmpp dialog
+
 -define(INIT,
 %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or fcm. This might change as google finish upgrade to fcm
   <<"<stream:stream to='gcm.googleapis.com' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
@@ -193,10 +201,10 @@ binded(info, {ssl, _SSLSock, Message}, Data) ->
   end;
 
 
-binded(info, {ssl, _SSLSock, Message}, _Data) ->
-  error_logger:info_msg("Puscomp received SSL ~p",[Message]),
-  snatch:received(Message),
-  {keep_state_and_data, []};
+%%binded(info, {ssl, _SSLSock, Message}, _Data) ->
+%%  error_logger:info_msg("Puscomp received SSL ~p",[Message]),
+%%  snatch:received(Message),
+%%  {keep_state_and_data, []};
 
 binded(cast, _Unknown, _Data) ->
   {keep_state_and_data, []}.
@@ -254,7 +262,6 @@ close_stream(Stream) -> fxml_stream:close(Stream).
 
 
 
-
 -spec(send_push(Payload :: binary(), Socket :: tuple()) -> tuple()).
 send_push(Payload, Socket) ->
   FinalPayload = {xmlcdata, jsone:encode(Payload)},
@@ -292,15 +299,23 @@ process_message_payload(El) ->
 
 process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
   error_logger:info_msg("FCm claw, connection drainned",[]),
-  pooler:remove_pid(self()),
-  {next_state, drainned};
+  %% TODO : fix next line, as pooler:remove_pid isn't exported and is killing the connection anyway. This makes
+  %% NACK and NACK won't be received, but as are not managing them right now, it is ok.to kill the claw
+  {stop, normal};
 
 process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
   error_logger:info_msg("ACk from FCM",[]),
   ok;
 
-process_json_payload(#{<<"message_type">> := <<"nack">>}) ->
-  error_logger:error_msg("NACk from FCM",[]),
+
+process_json_payload(#{<<"message_type">> := <<"nack">>, <<"error">> := ?DEVICE_MESSAGE_RATE_EXCEEDED, <<"from">> := From}) ->
+  error_logger:info_msg("NACK: FCm claw :~p exceeding FCM push rate limit for device :",[self(), From]),
+  {next_state, rate_exceeded};
+
+
+
+process_json_payload(#{<<"message_type">> := <<"nack">>,  <<"error">> := Error}) ->
+  error_logger:error_msg("NACk: ~p",[Error]),
   ok;
 
 
