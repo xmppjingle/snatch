@@ -197,10 +197,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%
 
 send(Data) ->
-  jobs:run(http_requests,fun()-> handle_push_request(Data) end).
+  jobs:run(push_queue,fun()->
+                            P = pooler:take_member(push_pool),
+                            gen_statem:cast(P, {send, Data}),
+                            pooler:return_member(push_pool, P, ok)
+                         end).
 
-
-handle_push_request(Data) ->
-  P = pooler:take_member(push_pool),
-  gen_statem:cast(P, {send, Data}),
-  pooler:return_member(push_pool, P, ok).
