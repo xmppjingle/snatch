@@ -201,10 +201,10 @@ binded(info, {ssl, _SSLSock, Message}, Data) ->
   end;
 
 
-%%binded(info, {ssl, _SSLSock, Message}, _Data) ->
-%%  error_logger:info_msg("Puscomp received SSL ~p",[Message]),
-%%  snatch:received(Message),
-%%  {keep_state_and_data, []};
+binded(info, {ssl, _SSLSock, Message}, _Data) ->
+  error_logger:info_msg("Puscomp received SSL ~p",[Message]),
+  snatch:received(Message),
+  {keep_state_and_data, []};
 
 binded(cast, _Unknown, _Data) ->
   {keep_state_and_data, []}.
