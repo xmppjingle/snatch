@@ -181,7 +181,7 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
 
 binded(cast, {received, #xmlel{} = Message}, Data) ->
   DecPak = fxml_stream:parse_element(Message),
-  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak, _SSLSock]),
+  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
   case DecPak#xmlel.name of
     <<"message">> ->
       case process_fcm_message(DecPak, Data) of
