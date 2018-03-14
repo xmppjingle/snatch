@@ -178,11 +178,8 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
   snatch:received(Packet, Via),
   {keep_state_and_data, []};
 
-binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
-  {keep_state_and_data, []};
 
-
-binded(info, {ssl, _SSLSock, Message}, Data) ->
+binded(cast, {received, #xmlel{} = Message}, Data) ->
   DecPak = fxml_stream:parse_element(Message),
   error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak, _SSLSock]),
   case DecPak#xmlel.name of
@@ -201,12 +198,24 @@ binded(info, {ssl, _SSLSock, Message}, Data) ->
   end;
 
 
+%% KEEP alive
+binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
+  {keep_state_and_data, []};
+
+
+binded(info, {ssl_closed, Info}, _Data) ->
+  error_logger:info_msg("SSL closed ~p",[Info]),
+  {stop, normal};
+
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
   error_logger:info_msg("Puscomp received SSL ~p",[Message]),
   snatch:received(Message),
   {keep_state_and_data, []};
 
-binded(cast, _Unknown, _Data) ->
+
+%% Unmanaged event
+binded(_Typ , _Unknown, _Data) ->
+  error_logger:warning_msg("Unmanaged event :~p",[{_Typ, _Unknown}]),
   {keep_state_and_data, []}.
 
 
