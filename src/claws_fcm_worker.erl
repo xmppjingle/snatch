@@ -154,17 +154,19 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
 
 
 binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
-  error_logger:info_msg("Received request to send push payload :~p",[Payload]),
+  error_logger:info_msg("Received request to send push payload (list) :~p",[Payload]),
 
   JSONPayload = lists:foldl(
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
   send_push(jsone:encode(JSONPayload), Socket),
+  error_logger:info_msg("Encoded json :~p",[JSONPayload]),
   {keep_state_and_data, []};
 
 
 binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
-  error_logger:info_msg("Received request to send push payload :~p",[Payload]),
+  error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
+  error_logger:info_msg("Encoded json :~p",[jsone:encode(Payload)]),
 
   send_push(jsone:encode(Payload), Socket),
   {keep_state_and_data, []};
