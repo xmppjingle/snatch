@@ -166,8 +166,11 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
 
 binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
+  DecMap = jsone:decode(Payload),
+  FinalMap = maps:put(<<"message_id">>, base64:encode(crypto:strong_rand_bytes(6)), DecMap),
+  error_logger:info_msg("Final map :~p",[FinalMap]),
 
-  send_push(Payload, Socket),
+  send_push(jsone:encode(FinalMap), Socket),
   {keep_state_and_data, []};
 
 
