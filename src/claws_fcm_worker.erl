@@ -159,14 +159,13 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
   JSONPayload = lists:foldl(
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
-  send_push(JSONPayload, Socket),
+  send_push(jsone:encode(JSONPayload), Socket),
   error_logger:info_msg("Encoded json :~p",[jsone:encode(JSONPayload)]),
   {keep_state_and_data, []};
 
 
 binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
-  error_logger:info_msg("Encoded json :~p",[jsone:encode(Payload)]),
 
   send_push(Payload, Socket),
   {keep_state_and_data, []};
@@ -273,9 +272,9 @@ close_stream(Stream) -> fxml_stream:close(Stream).
 
 
 
--spec(send_push(Payload :: binary(), Socket :: tuple()) -> tuple()).
+-spec(send_push(Payload :: map(), Socket :: tuple()) -> tuple()).
 send_push(Payload, Socket) ->
-  FinalPayload = {xmlcdata, jsone:encode(Payload)},
+  FinalPayload = {xmlcdata, Payload},
 
   Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
   Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
@@ -284,7 +283,7 @@ send_push(Payload, Socket) ->
   ok.
 
 
-
+-spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).
 process_fcm_message(Message, Data) ->
   Message_type = proplists:get_value(<<"type">>, Message#xmlel.attrs),
   case Message_type of
@@ -296,7 +295,7 @@ process_fcm_message(Message, Data) ->
       process_message_payload(lists:nth(1,Message#xmlel.children))
   end.
 
-
+-spec(process_message_payload(Data :: xmlel()) -> tuple()).
 process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
   Cdata = fxml:get_tag_cdata(Data),
   Payload = jsone:decode(Cdata),
@@ -307,7 +306,7 @@ process_message_payload(El) ->
   error_logger:error_msg("Received unmanaged payload from Google FCM : ~p",[El]),
   ok.
 
-
+-spec(process_json_payload(Input :: map()) -> tuple()).
 process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
   error_logger:info_msg("FCm claw, connection drainned",[]),
   %% TODO : fix next line, as pooler:remove_pid isn't exported and is killing the connection anyway. This makes

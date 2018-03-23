@@ -171,6 +171,7 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
+
 -spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
     Extra :: term()) ->
   {ok, NewState :: #state{}} | {error, Reason :: term()}).
@@ -196,6 +197,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% Ex :
 %%
 
+
+-spec(send(Data :: tuple()) -> tuple()).
 send(Data) ->
   jobs:run(push_queue,fun()->
                             P = pooler:take_member(push_pool),
