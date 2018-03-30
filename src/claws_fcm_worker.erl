@@ -1,6 +1,8 @@
 -module(claws_fcm_worker).
 -behaviour(gen_statem).
--behaviour(claws).
+
+%% FIXME: missing send/2 and send/3 for behaviour
+%-behaviour(claws).
 
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -183,25 +185,6 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
   {keep_state_and_data, []};
 
 
-binded(cast, {received, #xmlel{} = Message}, Data) ->
-  DecPak = fxml_stream:parse_element(Message),
-  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
-  case DecPak#xmlel.name of
-    <<"message">> ->
-      case process_fcm_message(DecPak, Data) of
-        ok ->
-          {keep_state_and_data, []};
-        {next_state, State} ->
-          {next_state, State, Data, []};
-        _ ->
-          {keep_state_and_data, []}
-      end;
-    _ ->
-      snatch:received(DecPak),
-      {keep_state_and_data, []}
-  end;
-
-
 %% KEEP alive
 binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
   {keep_state_and_data, []};
@@ -283,55 +266,4 @@ send_push(Payload, Socket) ->
   Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
   error_logger:info_msg("Sending push :~p",[Mes]),
   ssl:send(Socket, fxml:element_to_binary(Mes)),
-  ok.
-
-
--spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).
-process_fcm_message(Message, Data) ->
-  Message_type = proplists:get_value(<<"type">>, Message#xmlel.attrs),
-  case Message_type of
-    <<"error">> ->
-      error_logger:error_msg("FCM claw received error from FCM server :~p",[Message]),
-      ok;
-    _ ->
-      error_logger:info_msg("FCM claw received message from google FCM :~p",[{Message, Data}]),
-      process_message_payload(lists:nth(1,Message#xmlel.children))
-  end.
-
--spec(process_message_payload(Data :: xmlel()) -> tuple()).
-process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
-  Cdata = fxml:get_tag_cdata(Data),
-  Payload = jsone:decode(Cdata),
-  process_json_payload(Payload);
-
-
-process_message_payload(El) ->
-  error_logger:error_msg("Received unmanaged payload from Google FCM : ~p",[El]),
-  ok.
-
--spec(process_json_payload(Input :: map()) -> tuple()).
-process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
-  error_logger:info_msg("FCm claw, connection drainned",[]),
-  %% TODO : fix next line, as pooler:remove_pid isn't exported and is killing the connection anyway. This makes
-  %% NACK and NACK won't be received, but as are not managing them right now, it is ok.to kill the claw
-  {stop, normal};
-
-process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
-  error_logger:info_msg("ACk from FCM",[]),
-  ok;
-
-
-process_json_payload(#{<<"message_type">> := <<"nack">>, <<"error">> := ?DEVICE_MESSAGE_RATE_EXCEEDED, <<"from">> := From}) ->
-  error_logger:info_msg("NACK: FCm claw :~p exceeding FCM push rate limit for device :",[self(), From]),
-  {next_state, rate_exceeded};
-
-
-
-process_json_payload(#{<<"message_type">> := <<"nack">>,  <<"error">> := Error}) ->
-  error_logger:error_msg("NACk: ~p",[Error]),
-  ok;
-
-
-process_json_payload(Unk) ->
-  error_logger:error_msg("Claw FCM received unmanaged payload :~p",[Unk]),
   ok.
