@@ -35,6 +35,14 @@
   drainned/3]).
 
 
+
+%% FCM NACK codes
+
+-define(DEVICE_MESSAGE_RATE_EXCEEDED, <<"DEVICE_MESSAGE_RATE_EXCEEDED">>).
+
+
+%% Defines for FCM xmpp dialog
+
 -define(INIT,
 %% Right now it seems the domain is gcm.googleapis.com whenever we use gcm or fcm. This might change as google finish upgrade to fcm
   <<"<stream:stream to='gcm.googleapis.com' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'>">>).
@@ -146,19 +154,23 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
 
 
 binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
-  error_logger:info_msg("Received request to send push payload :~p",[Payload]),
+  error_logger:info_msg("Received request to send push payload (list) :~p",[Payload]),
 
   JSONPayload = lists:foldl(
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
   send_push(jsone:encode(JSONPayload), Socket),
+  error_logger:info_msg("Encoded json :~p",[jsone:encode(JSONPayload)]),
   {keep_state_and_data, []};
 
 
 binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
-  error_logger:info_msg("Received request to send push payload :~p",[Payload]),
+  error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
+  DecMap = jsone:decode(Payload),
+  FinalMap = maps:put(<<"message_id">>, base64:encode(crypto:strong_rand_bytes(6)), DecMap),
+  error_logger:info_msg("Final map :~p",[FinalMap]),
 
-  send_push(jsone:encode(Payload), Socket),
+  send_push(jsone:encode(FinalMap), Socket),
   {keep_state_and_data, []};
 
 
@@ -170,13 +182,10 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
   snatch:received(Packet, Via),
   {keep_state_and_data, []};
 
-binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
-  {keep_state_and_data, []};
 
-
-binded(info, {ssl, _SSLSock, Message}, Data) ->
+binded(cast, {received, #xmlel{} = Message}, Data) ->
   DecPak = fxml_stream:parse_element(Message),
-  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak, _SSLSock]),
+  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
   case DecPak#xmlel.name of
     <<"message">> ->
       case process_fcm_message(DecPak, Data) of
@@ -193,12 +202,24 @@ binded(info, {ssl, _SSLSock, Message}, Data) ->
   end;
 
 
+%% KEEP alive
+binded(info, {ssl, _SSLSock, <<" ">>}, _Data) ->
+  {keep_state_and_data, []};
+
+
+binded(info, {ssl_closed, Info}, _Data) ->
+  error_logger:info_msg("SSL closed ~p",[Info]),
+  {stop, normal};
+
 binded(info, {ssl, _SSLSock, Message}, _Data) ->
   error_logger:info_msg("Puscomp received SSL ~p",[Message]),
   snatch:received(Message),
   {keep_state_and_data, []};
 
-binded(cast, _Unknown, _Data) ->
+
+%% Unmanaged event
+binded(_Typ , _Unknown, _Data) ->
+  error_logger:warning_msg("Unmanaged event :~p",[{_Typ, _Unknown}]),
   {keep_state_and_data, []}.
 
 
@@ -254,10 +275,9 @@ close_stream(Stream) -> fxml_stream:close(Stream).
 
 
 
-
--spec(send_push(Payload :: binary(), Socket :: tuple()) -> tuple()).
+-spec(send_push(Payload :: map(), Socket :: tuple()) -> tuple()).
 send_push(Payload, Socket) ->
-  FinalPayload = {xmlcdata, jsone:encode(Payload)},
+  FinalPayload = {xmlcdata, Payload},
 
   Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
   Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
@@ -266,7 +286,7 @@ send_push(Payload, Socket) ->
   ok.
 
 
-
+-spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).
 process_fcm_message(Message, Data) ->
   Message_type = proplists:get_value(<<"type">>, Message#xmlel.attrs),
   case Message_type of
@@ -278,7 +298,7 @@ process_fcm_message(Message, Data) ->
       process_message_payload(lists:nth(1,Message#xmlel.children))
   end.
 
-
+-spec(process_message_payload(Data :: xmlel()) -> tuple()).
 process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
   Cdata = fxml:get_tag_cdata(Data),
   Payload = jsone:decode(Cdata),
@@ -289,18 +309,26 @@ process_message_payload(El) ->
   error_logger:error_msg("Received unmanaged payload from Google FCM : ~p",[El]),
   ok.
 
-
+-spec(process_json_payload(Input :: map()) -> tuple()).
 process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
   error_logger:info_msg("FCm claw, connection drainned",[]),
-  pooler:remove_pid(self()),
-  {next_state, drainned};
+  %% TODO : fix next line, as pooler:remove_pid isn't exported and is killing the connection anyway. This makes
+  %% NACK and NACK won't be received, but as are not managing them right now, it is ok.to kill the claw
+  {stop, normal};
 
 process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
   error_logger:info_msg("ACk from FCM",[]),
   ok;
 
-process_json_payload(#{<<"message_type">> := <<"nack">>}) ->
-  error_logger:error_msg("NACk from FCM",[]),
+
+process_json_payload(#{<<"message_type">> := <<"nack">>, <<"error">> := ?DEVICE_MESSAGE_RATE_EXCEEDED, <<"from">> := From}) ->
+  error_logger:info_msg("NACK: FCm claw :~p exceeding FCM push rate limit for device :",[self(), From]),
+  {next_state, rate_exceeded};
+
+
+
+process_json_payload(#{<<"message_type">> := <<"nack">>,  <<"error">> := Error}) ->
+  error_logger:error_msg("NACk: ~p",[Error]),
   ok;
 
 
