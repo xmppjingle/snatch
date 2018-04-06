@@ -64,7 +64,7 @@ start_subscriber({InTopic, {group, GroupId}}, Opts) ->
 start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
     CommitOffsets = [],
-    State = #{topic => InTopic, partiions => InPartitions},
+    State = #{topic => InTopic, partitions => InPartitions},
     {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
                                                  InTopic,
                                                  InPartitions,
