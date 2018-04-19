@@ -13,6 +13,7 @@
     socket :: gen_tcp:socket(),
     trimmed = false :: boolean(),
     adjust_attrs = false :: boolean(),
+    ping = false :: false | pos_integer(),
     stream
 }).
 
@@ -43,11 +44,11 @@
 
 -spec start_link(Name :: atom(), Params :: map()) -> {ok, pid()}.
 start_link(Name, Params) ->
-    gen_statem:start({local, Name}, ?MODULE, Params, []).
+    gen_statem:start_link({local, Name}, ?MODULE, Params, []).
 
 -spec start_link(Params :: map()) -> {ok, pid()}.
 start_link(Params) ->
-    gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
+    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
 
 -type xmpp_conn_state() :: disconnected |
                            retrying |
@@ -63,12 +64,14 @@ init(#{host := Host,
        password := Password} = Cfg) ->
     Trimmed = maps:get(trimmed, Cfg, false),
     AddFrom = maps:get(adjust_attrs, Cfg, false),
+    Ping = maps:get(ping, Cfg, false),
     {ok, disconnected, #data{host = Host,
                              port = Port,
                              domain = Domain,
                              password = Password,
                              trimmed = Trimmed,
-                             adjust_attrs = AddFrom}}.
+                             adjust_attrs = AddFrom,
+                             ping = Ping}}.
 
 -spec callback_mode() -> handle_event_function.
 %% @private
@@ -140,7 +143,7 @@ authenticate(cast, {handshake, StreamID},
 
 authenticate(cast, {received, #xmlel{name = <<"handshake">>,
                                      children = []}}, Data) ->
-    {next_state, ready, Data, []}.
+    {next_state, ready, Data, timeout_action(Data)}.
 
 remove_attr(Name, #xmlel{attrs = Attrs} = XmlEl) ->
     XmlEl#xmlel{attrs = proplists:delete(Name, Attrs)}.
@@ -163,7 +166,7 @@ change_attrs(Fields, XmlEl) ->
 
 ready(cast, {send, Packet, JID, ID}, #data{socket = Socket,
                                            adjust_attrs = true,
-                                           domain = Domain}) ->
+                                           domain = Domain} = Data) ->
     XmlEl = fxml_stream:parse_element(Packet),
     Fields = [{<<"to">>, JID},
               {<<"from">>, Domain},
@@ -171,41 +174,43 @@ ready(cast, {send, Packet, JID, ID}, #data{socket = Socket,
     NewXmlEl = change_attrs(Fields, XmlEl),
     NewPacket = fxml:element_to_binary(NewXmlEl),
     gen_tcp:send(Socket, NewPacket),
-    {keep_state_and_data, []};
+    {keep_state_and_data, timeout_action(Data)};
 
-ready(cast, {send, Packet, _JID, _ID}, #data{socket = Socket}) ->
+ready(cast, {send, Packet, _JID, _ID}, #data{socket = Socket} = Data) ->
     gen_tcp:send(Socket, Packet),
-    {keep_state_and_data, []};
+    {keep_state_and_data, timeout_action(Data)};
 
-ready(cast, {received, Packet}, #data{trimmed = true}) ->
+ready(cast, {received, Packet}, #data{trimmed = true} = Data) ->
     From = snatch_xml:get_attr(<<"from">>, Packet),
     To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     TrimmedPacket = snatch_xml:clean_spaces(Packet),
     snatch:received(TrimmedPacket, Via),
-    {keep_state_and_data, []};
+    {keep_state_and_data, timeout_action(Data)};
 
-ready(cast, {received, Packet}, #data{trimmed = false}) ->
+ready(cast, {received, Packet}, #data{trimmed = false} = Data) ->
     From = snatch_xml:get_attr(<<"from">>, Packet),
     To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     snatch:received(Packet, Via),
-    {keep_state_and_data, []}.
+    {keep_state_and_data, timeout_action(Data)}.
 
 
+handle_event(timeout, ping, _State, #data{socket = Socket} = Data) ->
+    gen_tcp:send(Socket, <<"\n">>),
+    {keep_state_and_data, timeout_action(Data)};
 handle_event(info, {tcp, _Socket, Packet}, _State,
              #data{stream = Stream} = Data) ->
     NewStream = fxml_stream:parse(Stream, Packet),
     {keep_state, Data#data{stream = NewStream}, []};
-handle_event(info, {TCP, _Socket}, _State, #data{stream = Stream} = Data)
-        when TCP =:= tcp_closed orelse TCP =:= tcp_error ->
+handle_event(info, {tcp_closed, _Socket}, _State, #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
-handle_event(info, {TCP, _Socket, _Reason}, _State, #data{stream = Stream} = Data)
-        when TCP =:= tcp_closed orelse TCP =:= tcp_error ->
+handle_event(info, {tcp_error, _Socket, Reason}, _State, #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
+    error_logger:error_msg("tcp closed error: ~p~n", [Reason]),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {xmlstreamstart, _Name, _Attribs} = Packet, _State, Data) ->
     {keep_state, Data, [{next_event, cast, {received, Packet}}]};
@@ -238,3 +243,8 @@ send(Data, JID, ID) ->
 
 close_stream(Stream) ->
     catch fxml_stream:close(Stream).
+
+timeout_action(#data{ping = false}) ->
+    [];
+timeout_action(#data{ping = Ping}) ->
+    [{timeout, Ping, ping}].

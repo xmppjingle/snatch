@@ -12,6 +12,7 @@ Params = #{endpoints => [{"localhost", 9092}],
            in_topics => [{<<"xmpp.in">>, [0]}],
            out_topic => <<"xmpp.out">>,
            out_partition => 0,
+           consumer_config => [{begin_offset, earliest}],
            trimmed => false,
            raw => false},
 {ok, PID} = claws_kafka:start_link(Params).

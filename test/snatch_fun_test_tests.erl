@@ -3,7 +3,7 @@
 -compile([warnings_as_errors, debug_info]).
 
 -export([init/1, terminate/2, handle_info/2]).
--export([check_data/3]).
+-export([check_data/3, check_json/3]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("fast_xml/include/fxml.hrl").
@@ -33,8 +33,20 @@ ping_router_test_() ->
                 "xmpp_comp_ping_router"
             ])}.
 
+kafka_test_() ->
+    snatch_fun_test:check([
+        "kafka_json"
+    ]).
+
+-define(STATUS_OK, <<"{\"status\": \"ok\"}">>).
+
 check_data([#xmlel{}], [#xmlel{}], Map) ->
     ?assertMatch(#{ <<"data">> := <<"abc">> }, Map),
+    ok.
+
+check_json([StatusOk], [StatusOk], Map) ->
+    ?assertMatch(#{ <<"id">> := <<"test_bot">> }, Map),
+    ?assertEqual(?STATUS_OK, StatusOk),
     ok.
 
 -define(JID_USER, <<"bob@localhost/pc">>).
@@ -84,11 +96,24 @@ check_data([#xmlel{}], [#xmlel{}], Map) ->
                                    ]}
                           ]}).
 
+%% Note that the JSON code is inside of a XML CDATA field so you have to keep
+%%      the spaces as are:
+-define(JSON, <<"
+                {\"message\": \"hello everybody\",
+                 \"from\": \"bob@localhost/pc\",
+                 \"to\": \"alice.localhost\",
+                 \"id\": \"test_bot\"}
+            ">>).
+
 init([]) ->
     {ok, []}.
 
 terminate(_Reason, _State) ->
     ok.
+
+handle_info({received, ?JSON, #via{}}, []) ->
+    snatch:send(?STATUS_OK),
+    {noreply, []};
 
 handle_info({received, ?QUERY_REQUEST, #via{}}, []) ->
     snatch:send(fxml:element_to_binary(?QUERY_RESPONSE)),

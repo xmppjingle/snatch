@@ -1,6 +1,7 @@
 #!/bin/bash
 
-KAFKA_VERSION="2.11-0.11.0.1"
+export KAFKA_VERSION="2.11-1.0.0"
+export KAFKA_URL="http://apache.proserve.nl/kafka/1.0.0/kafka_$KAFKA_VERSION.tgz"
 
 apt-get install -y tmux wget \
                         default-jdk \
@@ -8,8 +9,8 @@ apt-get install -y tmux wget \
                         build-essential \
                         psmisc
 
-wget http://apache.cs.uu.nl/kafka/0.11.0.1/kafka_$KAFKA_VERSION.tgz
-tar xzf kafka_$KAFKA_VERSION.tgz
+wget -O kafka.tgz $KAFKA_URL
+tar xzf kafka.tgz
 cd kafka_$KAFKA_VERSION
 bin/zookeeper-server-start.sh config/zookeeper.properties &
 sleep 1
