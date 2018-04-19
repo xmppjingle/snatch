@@ -171,7 +171,19 @@ process_xml_action(#xmlel{attrs = Attrs, children = Children} = El,
             RE = <<"^\\{\\{([^}]+)\\}\\}$">>,
             Opts = [global, {capture, all, binary}],
             case re:run(Value, RE, Opts) of
-                {match, [[Value, Key]]} -> {AttrKey, maps:get(Key, Map)};
+                {match, [[Value, Key]]} ->
+                    case maps:get(Key, Map, undefined) of
+                        undefined ->
+                            XMLStanza = fxml:element_to_binary(El),
+                            ?debugFmt("~n~n-----------~n"
+                                      "missing key: ~s~n"
+                                      "~nStanza => ~s~n"
+                                      "~nMap => ~p~n-----------~n",
+                                      [Key, XMLStanza, Map]),
+                            erlang:halt(1);
+                        AttrVal ->
+                            {AttrKey, AttrVal}
+                    end;
                 nomatch -> {AttrKey, Value}
             end;
         (Attr) -> Attr
@@ -179,16 +191,16 @@ process_xml_action(#xmlel{attrs = Attrs, children = Children} = El,
     ProcessedChildren = lists:map(fun
         ({xmlcdata, CData}) ->
             RE = <<"\\{\\{([^}]+)\\}\\}">>,
-            Opts = [global],
+            Opts = [global, {capture, all, binary}],
             case re:run(CData, RE, Opts) of
                 {match, [[CData|Keys]]} ->
-                    lists:foldl(fun(Key, CD) ->
+                    {xmlcdata, lists:foldl(fun(Key, CD) ->
                         Val = maps:get(Key, Map),
                         ReplaceKey = <<"\\{\\{", Key/binary, "\\}\\}">>,
-                        iolist_to_binary(re:replace(CD, ReplaceKey, Val, Opts))
-                    end, CData, Keys);
+                        re:replace(CD, ReplaceKey, Val, [global])
+                    end, CData, Keys)};
                 nomatch ->
-                    CData
+                    {xmlcdata, CData}
             end;
         (#xmlel{} = Child) ->
             hd(element(1, process_xml_action(Child, {[], Map})))

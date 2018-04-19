@@ -47,7 +47,6 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
             ProdConfig = [],
             ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
     end,
-    SubscriberCallbackFun = fun subscriber_callback/3,
     Subscribers = lists:map(fun (InTopic) -> start_subscriber(InTopic, Opts) end,
                             InTopics),
     {ok, Opts#{subscribers => Subscribers}}.
@@ -55,15 +54,17 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
 start_subscriber({InTopic, {group, GroupId}}, Opts) ->
     GroupConfig = maps:get(group_config, Opts, default_group_config()),
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    State = #{topic => InTopic, group => GroupId},
     {ok, PID} = brod_group_subscriber:start_link(?KAFKA_CLIENT, GroupId, [InTopic],
                                                  GroupConfig, ConsumerConfig,
                                                  _MessageType = message,
                                                  _CallbackModule  = ?MODULE,
-                                                 _CallbackInitArg = #{}),
+                                                 _CallbackInitArg = State),
     {brod_group_subscriber, PID};
 start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
     CommitOffsets = [],
+    State = #{topic => InTopic, partitions => InPartitions},
     {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
                                                  InTopic,
                                                  InPartitions,
@@ -71,7 +72,7 @@ start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
                                                  CommitOffsets,
                                                  _MessageType = message,
                                                  fun subscriber_callback/3,
-                                                 _CallbackState = self()),
+                                                 State),
     {brod_topic_subscriber, PID}.
 
 
@@ -85,9 +86,9 @@ default_consumer_config() ->
 
 
 %% brod_topic_subscriber:cb_fun()
-subscriber_callback(Partition, Msg, CallbackState) ->
-    gen_server:cast(?MODULE, {received, Msg, Partition}),
-    {ok, ack, CallbackState}.
+subscriber_callback(Partition, Msg, #{topic := Topic} = State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
+    {ok, ack, State}.
 
 
 %% brod_group_subscriber init/2 impl
@@ -96,23 +97,23 @@ init(_Topic, #{} = SubscriberState) ->
 
 
 %% brod_group_subscriber handle_message/4 impl
-handle_message(_Topic, Partition, Msg, SubscriberState) ->
-    gen_server:cast(?MODULE, {received, Msg, Partition}),
+handle_message(Topic, Partition, Msg, State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
     %% TODO: Follows subscriber_callback/3, but what if we crash after ack?
-    {ok, ack, SubscriberState}.
+    {ok, ack, State}.
 
 
 handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
 
 
-handle_cast({received, #kafka_message{key = _Key, value = Data}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = Data}, {Topic, _Part}},
             #{raw := true} = Opts) ->
-    Via = #via{claws = ?MODULE},
+    Via = #via{claws = ?MODULE, exchange = Topic},
     snatch:received(Data, Via),
     {noreply, Opts};
 
-handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = XML}, {_Topic, _Part}},
             #{trimmed := true} = Opts) ->
     case fxml_stream:parse_element(XML) of
         {error, _Error} ->
@@ -126,7 +127,7 @@ handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
     end,
     {noreply, Opts};
 
-handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = XML}, {_Topic, _Part}},
             Opts) ->
     case fxml_stream:parse_element(XML) of
         {error, _Error} ->
