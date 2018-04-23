@@ -14,7 +14,7 @@
 -define(DEFAULT_VERBOSE, false).
 
 -define(DEFAULT_TIMES, 1).
--define(DEFAULT_STEP_TIMEOUT, 1000). % ms
+-define(DEFAULT_STEP_TIMEOUT, 5). % seconds
 
 -define(TEST_PROCESS, test_proc).
 -define(TIMEOUT_RECEIVE_ALL, 500). % ms
@@ -103,6 +103,8 @@ run_stop(#functional{}) ->
             true = unregister(?TEST_PROCESS)
         end}].
 
+run_step(#step{timeout = Timeout} = Step) when Timeout =/= undefined ->
+    [{timeout, Timeout, run_step(Step#step{timeout = undefined})}];
 run_step(#step{name = Name, actions = Actions}) ->
     [{Name, fun() ->
         lists:foldl(fun run_action/2, {[], [], #{}}, Actions)
