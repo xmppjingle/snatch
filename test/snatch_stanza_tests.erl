@@ -28,7 +28,7 @@
 
 -define(NOT_FOUND,
         "<error code='404' type='cancel'>"
-        "<not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
+        "<item-not-found xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/>"
         "</error>").
 
 -define(NOT_ACCEPTABLE,
@@ -49,7 +49,7 @@
 -define(ERRORS, [{<<"service-unavailable">>, <<?SERVICE_UNAVAILABLE>>},
                  {<<"bad-request">>, <<?BAD_REQUEST>>},
                  {<<"forbidden">>, <<?FORBIDDEN>>},
-                 {<<"not-found">>, <<?NOT_FOUND>>},
+                 {<<"item-not-found">>, <<?NOT_FOUND>>},
                  {<<"not-acceptable">>, <<?NOT_ACCEPTABLE>>},
                  {<<"internal-server-error">>, <<?INTERNAL_SERVER_ERROR>>},
                  {<<"feature-not-implemented">>, <<?FEATURE_NOT_IMPLEMENTED>>}]).
