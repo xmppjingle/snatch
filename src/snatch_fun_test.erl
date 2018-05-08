@@ -296,6 +296,8 @@ check_stanza(#xmlel{name = Name} = El1, #xmlel{name = Name} = El2) ->
             Els = lists:zip(lists:sort(El1#xmlel.children),
                             lists:sort(El2#xmlel.children)),
             lists:all(fun({E1, E2}) -> check_stanza(E1, E2) end, Els);
+        true ->
+            false;
         {error, Error} ->
             {error, Error};
         false ->
