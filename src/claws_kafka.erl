@@ -147,7 +147,10 @@ handle_cast({send, Data, JID, ID},
     IDBin = if is_binary(ID) -> ID; true -> <<"no-id">> end,
     Key = <<JIDBin/binary, ".", IDBin/binary>>,
     ok = brod:produce_sync(?KAFKA_CLIENT, OutTopic, Partition, Key, Data),
-    {noreply, Opts}.
+    {noreply, Opts};
+
+handle_cast(_Msg, State) -> 
+    {noreply, State}.
 
 
 handle_info(_Info, Opts) ->
