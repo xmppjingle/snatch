@@ -154,8 +154,8 @@ The function implemented will receive three params:
 
 - *Dictionary*. The dictionary (as a `map`) with all of the information retrieve at that moment.
 
-Sections
---------
+Sections (Steps)
+----------------
 
 As I said the sections has no a fixed order. For example, if when you are starting your system it's sending something, then it's a good idea start with an expected section and then maybe a check or even send.
 
@@ -189,6 +189,11 @@ Using binaries we can see an example as follow:
     <send><![CDATA[{"result": "tomorrow"}]]></send>
 </step>
 ```
+
+The attributes for `step` are the following:
+
+- `name`: specifies a name that will appear in the test output (if you use verbose output).
+- `timeout` (in seconds): specifies the time to perform the step. The default time is 5 seconds.
 
 Don't hesitate to comment if this information isn't clear or you need help with this.
 
