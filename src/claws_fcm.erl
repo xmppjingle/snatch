@@ -25,7 +25,7 @@
   code_change/3,
   terminate/2]).
 
--export([new_connection/3, send/1, send/2]).
+-export([new_connection/3, send/1, send/2, close_connections/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -197,6 +197,8 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
   ],
   pooler:new_pool(PoolSpec).
 
+close_connections(PoolName) ->
+  pooler:rm_pool(PoolName).
 
 send(Data, PoolName) ->
     P = pooler:take_member(PoolName),

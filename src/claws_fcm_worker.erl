@@ -267,7 +267,8 @@ handle_event(Type, Content, State, Data) ->
       error_logger:error_msg("Unknown Function: ~p~n", [State])
   end.
 
-terminate(_Reason, _StateName, _StateData) ->
+terminate(_Reason, _StateName, StateData) ->
+  jobs:delete_queue(StateData#data.pacer_entry),
   ok.
 
 code_change(_OldVsn, State, Data, _Extra) ->
