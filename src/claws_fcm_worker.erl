@@ -1,6 +1,6 @@
 -module(claws_fcm_worker).
 -behaviour(gen_statem).
--behaviour(claws).
+%%-behaviour(claws).
 
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -11,6 +11,7 @@
   server_id,
   server_key,
   socket :: gen_tcp:socket(),
+  pacer_entry,
   stream
 }).
 
@@ -147,9 +148,12 @@ wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
 
 
 binding(info, {ssl, _SSLSock, _Message}, Data) ->
-  error_logger:info_msg("Claw ~p is connected",[self()]),
+  error_logger:info_msg("FCM Connection ~p is ok",[self()]),
+  %% Pacer instanciation
+  QueueRef = make_ref(),
+  jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
-  {next_state, binded, Data, []}.
+  {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 
 
@@ -160,27 +164,27 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
   send_push(jsone:encode(JSONPayload), Socket),
-  error_logger:info_msg("Encoded json :~p",[jsone:encode(JSONPayload)]),
   {keep_state_and_data, []};
 
 
-binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
+binded(cast, {send, {json_map, Payload}}, #data{socket = Socket, pacer_entry = PacerEnt}) ->
   error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
   DecMap = jsone:decode(Payload),
   FinalMap = maps:put(<<"message_id">>, base64:encode(crypto:strong_rand_bytes(6)), DecMap),
   error_logger:info_msg("Final map :~p",[FinalMap]),
 
-  send_push(jsone:encode(FinalMap), Socket),
+  send_paced_push(jsone:encode(FinalMap), PacerEnt, Socket),
+
   {keep_state_and_data, []};
 
 
-binded(cast, {received, #xmlel{} = Packet}, _Data) ->
-  error_logger:info_msg("Puscomp received ~p",[Packet]),
-  From = snatch_xml:get_attr(<<"from">>, Packet),
-  To = snatch_xml:get_attr(<<"to">>, Packet),
-  Via = #via{jid = From, exchange = To, claws = ?MODULE},
-  snatch:received(Packet, Via),
-  {keep_state_and_data, []};
+%%binded(cast, {received, #xmlel{} = Packet}, _Data) ->
+%%  error_logger:info_msg("Puscomp received ~p",[Packet]),
+%%  From = snatch_xml:get_attr(<<"from">>, Packet),
+%%  To = snatch_xml:get_attr(<<"to">>, Packet),
+%%  Via = #via{jid = From, exchange = To, claws = ?MODULE},
+%%  snatch:received(Packet, Via),
+%%  {keep_state_and_data, []};
 
 
 binded(cast, {received, #xmlel{} = Message}, Data) ->
@@ -282,8 +286,15 @@ send_push(Payload, Socket) ->
   Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
   Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
   error_logger:info_msg("Sending push :~p",[Mes]),
+
   ssl:send(Socket, fxml:element_to_binary(Mes)),
   ok.
+
+
+send_paced_push(Payload, PacerEntry, Socket) ->
+  jobs:run(PacerEntry,fun()->
+                          send_push(Payload,Socket)
+                      end).
 
 
 -spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).

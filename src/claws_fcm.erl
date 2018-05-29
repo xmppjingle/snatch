@@ -15,7 +15,7 @@
 -include_lib("ibrowse/include/ibrowse.hrl").
 -include("snatch.hrl").
 
--export([start_link/2,
+-export([start_link/0,
   stop/0]).
 
 -export([init/1,
@@ -25,7 +25,7 @@
   code_change/3,
   terminate/2]).
 
--export([send/1]).
+-export([new_connection/3, send/1, send/2]).
 
 -define(SERVER, ?MODULE).
 
@@ -43,12 +43,12 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(FCMConfig :: map(), NbWorkers :: integer()) ->
+-spec(start_link() ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(FCMConfig, NbWorkers) ->
+start_link() ->
   application:start(pooler),
   application:start(fxml),
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [FCMConfig, NbWorkers], []).
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 
 
@@ -74,28 +74,9 @@ stop() ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([FCMConfig, NbWorkers]) ->
-  error_logger:info_msg("Starting pool claw with params :~p",[{FCMConfig, NbWorkers}]),
-
+init(_) ->
   %% Start the push queue with rate control
   application:start(jobs),
-  jobs:add_queue(push_queue,[{regulators, [{ rate, [{limit, 10000}]}]}]),
-
-  %% start a pool of process to consume from the push queue
-  PoolSpec = [
-    {name, push_pool},
-    {worker_module, claws_fcm_worker},
-    {size, NbWorkers},
-    {max_overflow, 10},
-    {max_count, 10},
-    {init_count, 2},
-    {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, [FCMConfig]}},
-    {fcm_conf, FCMConfig}
-  ],
-  pooler:new_pool(PoolSpec),
-
-
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -198,6 +179,32 @@ code_change(_OldVsn, State, _Extra) ->
 %%
 
 
+
+new_connection(PoolSize, PoolName, FcmConfig) ->
+  %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+
+  %% start a pool of process to consume from the push queue
+  PoolSpec = [
+    {name, PoolName},
+    {worker_module, claws_fcm_worker},
+    {size, PoolSize},
+    {max_overflow, 10},
+    {max_count, 10},
+    {init_count, 2},
+    {strategy, lifo},
+    {start_mfa, {claws_fcm_worker, start_link, [FcmConfig]}},
+    {fcm_conf, FcmConfig}
+  ],
+  pooler:new_pool(PoolSpec).
+
+
+send(Data, PoolName) ->
+    P = pooler:take_member(PoolName),
+    gen_statem:cast(P, {send, Data}),
+    pooler:return_member(push_pool, P, ok).
+
+
+%%deprecated
 -spec(send(Data :: tuple()) -> tuple()).
 send(Data) ->
   jobs:run(push_queue,fun()->
