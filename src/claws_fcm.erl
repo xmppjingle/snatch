@@ -182,7 +182,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 new_connection(PoolSize, PoolName, FcmConfig) ->
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
-
+  error_logger:info_msg("Creating new connection to FCM :~p",[{PoolName, FcmConfig}]),
   %% start a pool of process to consume from the push queue
   PoolSpec = [
     {name, PoolName},
@@ -192,18 +192,22 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
     {max_count, 10},
     {init_count, 2},
     {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, [FcmConfig]}},
+    {start_mfa, {claws_fcm_worker, start_link, FcmConfig}},
     {fcm_conf, FcmConfig}
   ],
   pooler:new_pool(PoolSpec).
 
 close_connections(PoolName) ->
+  error_logger:info_msg("Closing  connection to FCM :~p",[PoolName]),
   pooler:rm_pool(PoolName).
 
 send(Data, PoolName) ->
-    P = pooler:take_member(PoolName),
-    gen_statem:cast(P, {send, Data}),
-    pooler:return_member(push_pool, P, ok).
+  error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
+
+  P = pooler:take_member(PoolName),
+  error_logger:info_msg("Pool member :~p",[PoolName]),
+  gen_statem:cast(P, {send, Data}),
+  pooler:return_member(push_pool, P, ok).
 
 
 %%deprecated

@@ -81,6 +81,7 @@ disconnect() ->
 
 disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
   when Type =:= cast orelse Type =:= state_timeout ->
+  error_logger:info_msg("Connecting claw :~p",[self()]),
   case ssl:connect(Host, Port, [binary, {active, true}]) of
     {ok, NewSocket} ->
       {next_state, connected, Data#data{socket = NewSocket},
@@ -98,11 +99,13 @@ retrying(cast, connect, Data) ->
   {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
 
 connected(cast, init_stream, #data{} = Data) ->
+  error_logger:info_msg("FCM connected :~p",[self()]),
   Stream = fxml_stream:new(self()),
   {next_state, stream_init, Data#data{stream = Stream},
     [{next_event, cast, init}]}.
 
 stream_init(cast, init, #data{socket = Socket} = Data) ->
+  error_logger:info_msg("initialising stream :~p",[self()]),
   ssl:send(Socket, ?INIT),
   {keep_state, Data, []};
 
