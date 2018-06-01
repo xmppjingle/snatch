@@ -46,8 +46,6 @@
 -spec(start_link() ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link() ->
-  application:start(pooler),
-  application:start(fxml),
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 
@@ -76,7 +74,6 @@ stop() ->
   {stop, Reason :: term()} | ignore).
 init(_) ->
   %% Start the push queue with rate control
-  application:start(jobs),
   {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -192,7 +189,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
     {max_count, 10},
     {init_count, 2},
     {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, FcmConfig}},
+    {start_mfa, {claws_fcm_worker, start_link, [FcmConfig]}},
     {fcm_conf, FcmConfig}
   ],
   pooler:new_pool(PoolSpec).
