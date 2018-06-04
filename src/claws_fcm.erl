@@ -203,7 +203,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
           error_logger:error_msg("Error when creating pool :~p",[{M,E}])
       end,
   error_logger:info_msg("Pool creation result ~p",[P]),
-  P.
+  PoolName.
 
 
 close_connections(PoolName) when is_binary(PoolName)->
