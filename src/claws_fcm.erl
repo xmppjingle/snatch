@@ -184,7 +184,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
   error_logger:info_msg("Creating new connection to FCM :~p",[{PoolName, FcmConfig}]),
   %% start a pool of process to consume from the push queue
   PoolSpec = [
-    {name, binary_to_atom(PoolName, latin1)},
+    {name, PoolName},
     {worker_module, claws_fcm_worker},
     {size, PoolSize},
     {max_overflow, 10},
