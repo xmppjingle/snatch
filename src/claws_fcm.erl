@@ -192,7 +192,16 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
     {start_mfa, {claws_fcm_worker, start_link, [FcmConfig]}},
     {fcm_conf, FcmConfig}
   ],
-  pooler:new_pool(PoolSpec).
+
+  P = try pooler:new_pool(PoolSpec) of
+        Pp when is_pid(Pp) ->
+          Pp
+      catch
+        M:E ->
+          error_logger:error_msg("Error when creating pool :~p",[{M,E}])
+      end,
+  error_logger:info_msg("Pool creation result ~p",[P]),
+  P.
 
 close_connections(PoolName) ->
   error_logger:info_msg("Closing  connection to FCM :~p",[PoolName]),
@@ -202,7 +211,7 @@ send(Data, PoolName) ->
   error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
 
   P = pooler:take_member(PoolName),
-  error_logger:info_msg("Pool member :~p",[PoolName]),
+  error_logger:info_msg("Pool member :~p",[P]),
   gen_statem:cast(P, {send, Data}),
   pooler:return_member(push_pool, P, ok).
 
