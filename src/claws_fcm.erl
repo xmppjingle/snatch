@@ -176,13 +176,15 @@ code_change(_OldVsn, State, _Extra) ->
 %%
 
 
+new_connection(PoolSize, PoolName, FcmConfig) when is_binary(PoolName) ->
+  new_connection(PoolSize, binary_to_atom(PoolName, latin1), FcmConfig);
 
 new_connection(PoolSize, PoolName, FcmConfig) ->
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   error_logger:info_msg("Creating new connection to FCM :~p",[{PoolName, FcmConfig}]),
   %% start a pool of process to consume from the push queue
   PoolSpec = [
-    {name, PoolName},
+    {name, binary_to_atom(PoolName, latin1)},
     {worker_module, claws_fcm_worker},
     {size, PoolSize},
     {max_overflow, 10},
@@ -203,9 +205,16 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
   error_logger:info_msg("Pool creation result ~p",[P]),
   P.
 
+
+close_connections(PoolName) when is_binary(PoolName)->
+  close_connections(binary_to_atom(PoolName, latin1));
+
 close_connections(PoolName) ->
   error_logger:info_msg("Closing  connection to FCM :~p",[PoolName]),
   pooler:rm_pool(PoolName).
+
+send(Data, PoolName) when is_binary(PoolName) ->
+  send(Data, binary_to_atom(PoolName, latin1));
 
 send(Data, PoolName) ->
   error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
