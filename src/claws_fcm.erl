@@ -194,7 +194,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
   ],
 
   P = try pooler:new_pool(PoolSpec) of
-        Pp when is_pid(Pp) ->
+        Pp  ->
           Pp
       catch
         M:E ->
