@@ -84,6 +84,7 @@ disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
   error_logger:info_msg("Connecting claw :~p",[self()]),
   case ssl:connect(Host, Port, [binary, {active, true}]) of
     {ok, NewSocket} ->
+      error_logger:info_msg("socket claw connected :~p",[self()]),
       {next_state, connected, Data#data{socket = NewSocket},
         [{next_event, cast, init_stream}]};
     Error ->
