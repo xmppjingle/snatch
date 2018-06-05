@@ -82,7 +82,7 @@ disconnect() ->
 disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
   when Type =:= cast orelse Type =:= state_timeout ->
   error_logger:info_msg("Connecting claw :~p",[self()]),
-  case ssl:connect(Host, Port, [binary, {active, true}]) of
+  try ssl:connect(Host, Port, [binary, {active, true}]) of
     {ok, NewSocket} ->
       error_logger:info_msg("socket claw connected :~p",[self()]),
       {next_state, connected, Data#data{socket = NewSocket},
@@ -90,6 +90,10 @@ disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
     Error ->
       error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
         [Host, Port, Error]),
+      {next_state, retrying, Data, [{next_event, cast, connect}]}
+  catch
+    M:E ->
+      error_logger:error_msg("Connecting Error :~p",[{M,E}]),
       {next_state, retrying, Data, [{next_event, cast, connect}]}
   end;
 
