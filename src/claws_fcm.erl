@@ -195,7 +195,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
     {fcm_conf, FcmConfig}
   ],
 
-  P = try pooler:new_pool(PoolSpec) of
+  {ok, P} = try pooler:new_pool(PoolSpec) of
         Pp  ->
           Pp
       catch
@@ -203,7 +203,7 @@ new_connection(PoolSize, PoolName, FcmConfig) ->
           error_logger:error_msg("Error when creating pool :~p",[{M,E}])
       end,
   error_logger:info_msg("Pool creation result ~p",[P]),
-  P.
+  {PoolName, P}.
 
 
 close_connections(PoolName) when is_binary(PoolName)->
