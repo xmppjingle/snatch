@@ -120,11 +120,13 @@ wait_for_features(info, {ssl, _SSLSocket, _Message}, Data) ->
 authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
   socket = Socket} = Data) ->
   B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
+  error_logger:info_msg("Sending claw auth FCM :~p",[?AUTH_SASL(B64)]),
 
   ssl:send(Socket, ?AUTH_SASL(B64)),
   {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
+  error_logger:info_msg("FCM authenticate Received :~p",[?AUTH_SASL(B64)]),
   {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
@@ -135,17 +137,20 @@ bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
   {keep_state, Data#data{stream = NewStream}, []};
 
 bind(info, {ssl, _SSLSock, _Message}, Data) ->
+  error_logger:info_msg("FCM bind Received :~p",[_Message]),
   {next_state, wait_for_binding, Data, []}.
 
 
 
 wait_for_binding(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
+  error_logger:info_msg("FCM wait_for_binding Received :~p",[_Message]),
   ssl:send(Socket, ?BIND),
   {next_state, wait_for_result, Data, []}.
 
 
 
 wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
+  error_logger:info_msg("FCM wait_for_result Received :~p",[_Message]),
   {next_state, binded, Data, []}.
 
 
