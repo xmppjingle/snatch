@@ -126,7 +126,7 @@ authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
   {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
-  error_logger:info_msg("FCM authenticate Received :~p",[?AUTH_SASL(B64)]),
+  error_logger:info_msg("FCM authenticate Received :~p",[_Message]),
   {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
