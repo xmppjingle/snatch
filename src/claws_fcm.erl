@@ -222,7 +222,7 @@ send(Data, PoolName) ->
   P = pooler:take_member(PoolName),
   error_logger:info_msg("Pool member :~p",[P]),
   gen_statem:cast(P, {send, Data}),
-  pooler:return_member(push_pool, P, ok).
+  pooler:return_member(PoolName, P, ok).
 
 
 %%deprecated
