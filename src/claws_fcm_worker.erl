@@ -186,7 +186,7 @@ binded(cast, {send, {json_map, Payload}}, #data{socket = Socket, pacer_entry = P
   FinalMap = maps:put(<<"message_id">>, base64:encode(crypto:strong_rand_bytes(6)), DecMap),
   error_logger:info_msg("Final map :~p",[FinalMap]),
 
-  send_push(jsone:encode(FinalMap), PacerEnt, Socket),
+  send_push(jsone:encode(FinalMap), Socket),
 
   {keep_state_and_data, []};
 
@@ -305,10 +305,10 @@ send_push(Payload, Socket) ->
   ok.
 
 
-send_paced_push(Payload, PacerEntry, Socket) ->
-  jobs:run(PacerEntry,fun()->
-                          send_push(Payload,Socket)
-                      end).
+%%send_paced_push(Payload, PacerEntry, Socket) ->
+%%  jobs:run(PacerEntry,fun()->
+%%                          send_push(Payload,Socket)
+%%                      end).
 
 
 -spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).
