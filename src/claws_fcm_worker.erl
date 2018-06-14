@@ -12,7 +12,9 @@
   server_key,
   socket :: gen_tcp:socket(),
   pacer_entry,
-  stream
+  stream,
+  report_to,
+  con_name
 }).
 
 -export([start_link/1, connect/0, disconnect/0]).
@@ -63,9 +65,11 @@ start_link(FCMParams) ->
   ssl:start(),
   gen_statem:start_link(?MODULE, [FCMParams], []).
 
-init([#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}]) ->
+init([#{con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Conf]) ->
   error_logger:info_msg("Starting FCM claw :~p", [#{gcs_add => Gcs_add, gcs_port => Gcs_Port, server_id => ServerId, server_key => ServerKey}]),
-  {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}, [{next_event, cast, connect}]}.
+  ReportTo = maps:get(<<"report_to">>, Conf, undefined),
+  {ok, disconnected, #data{con_name = ConName, report_to = ReportTo, gcs_add = Gcs_add,
+    gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}, [{next_event, cast, connect}]}.
 
 callback_mode() -> handle_event_function.
 
@@ -166,6 +170,7 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
   QueueRef = make_ref(),
   jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
+  Data#data.report_to!{ready, Data#data.con_name, self()},
   {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 
@@ -180,7 +185,7 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
   {keep_state_and_data, []};
 
 
-binded(cast, {send, {json_map, Payload}}, #data{socket = Socket, pacer_entry = PacerEnt}) ->
+binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Received request to send push payload (map) :~p",[Payload]),
   DecMap = jsone:decode(Payload),
   FinalMap = maps:put(<<"message_id">>, base64:encode(crypto:strong_rand_bytes(6)), DecMap),
@@ -347,12 +352,12 @@ process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
 
 
 process_json_payload(#{<<"message_type">> := <<"nack">>, <<"error">> := ?DEVICE_MESSAGE_RATE_EXCEEDED, <<"from">> := From}) ->
-  error_logger:info_msg("NACK: FCm claw :~p exceeding FCM push rate limit for device :",[self(), From]),
+  error_logger:info_msg("NACK: FCM claw :~p exceeding FCM push rate limit for device :",[self(), From]),
   {next_state, rate_exceeded};
 
 
 
-process_json_payload(#{<<"message_type">> := <<"nack">>,  <<"error">> := Error}) ->
+process_json_payload(#{<<"message_type">> := <<"nack">> } = Error) ->
   error_logger:error_msg("NACk: ~p",[Error]),
   ok;
 

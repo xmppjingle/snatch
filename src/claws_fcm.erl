@@ -25,12 +25,14 @@
   code_change/3,
   terminate/2]).
 
--export([new_connection/3, send/1, send/2, close_connections/1]).
+-export([new_connection/3, send/2, close_connections/1]).
 
 -define(SERVER, ?MODULE).
 
 -record(state, {
-  poolpid :: pid() | undefined
+  poolpid :: pid() | undefined,
+  watchers = #{} :: map(),
+  connections_status = #{}
   }).
 
 %%%===================================================================
@@ -91,8 +93,89 @@ init(_) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call(_Request, _From, State) ->
-  {reply, ok, State}.
+handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State) ->
+  %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+  error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
+
+
+  %% Pooler takes only atoms as poolname ...
+  PoolName = case ConnectionName of
+               Binary when is_binary(Binary) ->
+                 binary_to_atom(ConnectionName, latin1);
+               Else when is_atom(Else)-> Else
+             end,
+
+
+  %% start a pool of process to consume from the push queue
+  PoolSpec = [
+    {name, PoolName},
+    {worker_module, claws_fcm_worker},
+    {size, PoolSize},
+    {max_overflow, 10},
+    {max_count, 10},
+    {init_count, 2},
+    {strategy, lifo},
+    {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), FcmConfig)]}},
+    {fcm_conf, FcmConfig}
+  ],
+
+  {ok, P} = try pooler:new_pool(PoolSpec) of
+              Pp  ->
+                Pp
+            catch
+              M:E ->
+                error_logger:error_msg("Error when creating pool :~p",[{M,E}])
+            end,
+
+  error_logger:info_msg("Pool creation result ~p",[P]),
+
+  ConnectionsStatus = State#state.connections_status,
+
+  Workers = [Pid || {Pid, _} <- pooler:pool_stats(PoolName)],
+
+  error_logger:info_msg("Workers for ~p ~p",[ConnectionName, P]),
+
+  {reply, {ConnectionName, PoolName, P},
+    State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus)}};
+
+
+
+handle_call({send, Data, ConnectionName}, _From, State) ->
+  case maps:get(ConnectionName,State#state.connections_status, undefined) of
+    undefined ->
+      {reply, no_connection, State};
+    {ConnectionStatus, PoolName, _P, _Workers} ->
+      case ConnectionStatus of
+        ready ->
+          error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
+
+          P = pooler:take_member(PoolName),
+          error_logger:info_msg("Pool member :~p",[P]),
+          gen_statem:cast(P, {send, Data}),
+          pooler:return_member(PoolName, P, ok),
+          {reply, ok, State};
+        Else ->
+          error_logger:info_msg("Cannot send, FCM connection in state :~p",[Else]),
+          {reply, connection_not_ready, State}
+      end
+    end;
+
+
+
+handle_call({close_connection, ConnectionName}, _From, State) ->
+  case maps:get(ConnectionName,State#state.connections_status, undefined) of
+    {_State, PoolName, _P, _Workers} ->
+      pooler:rm_pool(PoolName),
+      {ok, State#state{connections_status = maps:remove(ConnectionName,State#state.connections_status)}};
+    undefined ->
+      error_logger:info_msg("Can't close connection ~p as it doesnt exists.",[ConnectionName]),
+      {ok, State}
+  end;
+
+
+handle_call(Message, From, State) ->
+  error_logger:warning_msg("Unmanaged message from ~p at claw FCM : ~p",[From,Message]),
+  {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -118,10 +201,29 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+
 -spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
+
+handle_info({ready, ConName, Pid}, State) ->
+  ConnectionsStatus = State#state.connections_status,
+  {_Status, PoolName, P, Workers} = maps:get(ConName, ConnectionsStatus, []),
+  case lists:delete(Pid, Workers) of
+          [] ->
+            lists:foreach(
+              fun(PidWatcher) ->
+                PidWatcher!{connection_ready, PoolName} end, maps:get(PoolName, State#state.watchers,[])
+            ),
+            {noreply,State#state{connections_status = maps:put(ConName,{ready, PoolName, P, []},ConnectionsStatus)}};
+
+          NewListOfWorkers ->
+            {noreply,State#state{connections_status = maps:put(ConName,{connecting, PoolName, P, []}, NewListOfWorkers)}}
+  end;
+
+
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -156,9 +258,26 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
+
+new_connection(PoolSize, ConnectionName, FcmConfig)  ->
+  gen_server:call(?SERVER, {new_connection, PoolSize, ConnectionName, FcmConfig}).
+
+
+send(Data, ConnectionName) ->
+  gen_server:call(?SERVER, {send, Data, ConnectionName}).
+
+
+close_connections(ConnectionName) ->
+  gen_server:call(?SERVER, {close_connection, ConnectionName}).
+
+
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+
+
 
 %% Data is :
 %% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
@@ -172,65 +291,16 @@ code_change(_OldVsn, State, _Extra) ->
 %% {json_map, Payload}} : In this case, Payload is a map that will be converted to JSON before being sent to google FCM
 %% The token is supposed to be already stored inside the map under the key : "to".
 %%
-%% Ex :
+%%
 %%
 
 
-new_connection(PoolSize, PoolName, FcmConfig) when is_binary(PoolName) ->
-  new_connection(PoolSize, binary_to_atom(PoolName, latin1), FcmConfig);
-
-new_connection(PoolSize, PoolName, FcmConfig) ->
-  %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
-  error_logger:info_msg("Creating new connection to FCM :~p",[{PoolName, FcmConfig}]),
-  %% start a pool of process to consume from the push queue
-  PoolSpec = [
-    {name, PoolName},
-    {worker_module, claws_fcm_worker},
-    {size, PoolSize},
-    {max_overflow, 10},
-    {max_count, 10},
-    {init_count, 2},
-    {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, [FcmConfig]}},
-    {fcm_conf, FcmConfig}
-  ],
-
-  {ok, P} = try pooler:new_pool(PoolSpec) of
-        Pp  ->
-          Pp
-      catch
-        M:E ->
-          error_logger:error_msg("Error when creating pool :~p",[{M,E}])
-      end,
-  error_logger:info_msg("Pool creation result ~p",[P]),
-  {PoolName, P}.
-
-
-close_connections(PoolName) when is_binary(PoolName)->
-  close_connections(binary_to_atom(PoolName, latin1));
-
-close_connections(PoolName) ->
-  error_logger:info_msg("Closing  connection to FCM :~p",[PoolName]),
-  pooler:rm_pool(PoolName).
-
-send(Data, PoolName) when is_binary(PoolName) ->
-  send(Data, binary_to_atom(PoolName, latin1));
-
-send(Data, PoolName) ->
-  error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
-
-  P = pooler:take_member(PoolName),
-  error_logger:info_msg("Pool member :~p",[P]),
-  gen_statem:cast(P, {send, Data}),
-  pooler:return_member(PoolName, P, ok).
-
-
 %%deprecated
--spec(send(Data :: tuple()) -> tuple()).
-send(Data) ->
-  jobs:run(push_queue,fun()->
-                            P = pooler:take_member(push_pool),
-                            gen_statem:cast(P, {send, Data}),
-                            pooler:return_member(push_pool, P, ok)
-                         end).
-
+%%-spec(send(Data :: tuple()) -> tuple()).
+%%send(Data) ->
+%%  jobs:run(push_queue,fun()->
+%%                            P = pooler:take_member(push_pool),
+%%                            gen_statem:cast(P, {send, Data}),
+%%                            pooler:return_member(push_pool, P, ok)
+%%                         end).
+%%
