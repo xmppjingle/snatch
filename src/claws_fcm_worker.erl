@@ -170,7 +170,12 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
   QueueRef = make_ref(),
   jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
-  Data#data.report_to!{ready, Data#data.con_name, self()},
+  case Data#data.report_to of
+    Pid when is_pid(Pid) ->
+      Pid!{ready, Data#data.con_name, self()};
+    _ ->
+      ok
+  end,
   {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 

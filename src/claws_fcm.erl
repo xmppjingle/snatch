@@ -93,7 +93,7 @@ init(_) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State) ->
+handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) ->
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
 
@@ -135,8 +135,11 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State)
 
   error_logger:info_msg("Workers for ~p ~p",[ConnectionName, P]),
 
+  PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
+
   {reply, {ConnectionName, PoolName, P},
-    State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus)}};
+    State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus),
+      watchers = maps:put(ConnectionName, [From| PreviousWatchers], State#state.watchers)}};
 
 
 
@@ -215,9 +218,10 @@ handle_info({ready, ConName, Pid}, State) ->
           [] ->
             lists:foreach(
               fun(PidWatcher) ->
-                PidWatcher!{connection_ready, PoolName} end, maps:get(PoolName, State#state.watchers,[])
+                PidWatcher!{connection_ready, ConName} end, maps:get(ConName, State#state.watchers,[])
             ),
-            {noreply,State#state{connections_status = maps:put(ConName,{ready, PoolName, P, []},ConnectionsStatus)}};
+            {noreply,State#state{connections_status = maps:put(ConName,{ready, PoolName, P, []},ConnectionsStatus),
+              watchers = maps:put(ConName,[],State#state.watchers)}};
 
           NewListOfWorkers ->
             {noreply,State#state{connections_status = maps:put(ConName,{connecting, PoolName, P, []}, NewListOfWorkers)}}
