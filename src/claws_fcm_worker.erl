@@ -159,8 +159,19 @@ wait_for_binding(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data)
 
 
 wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
-  error_logger:info_msg("FCM wait_for_result Received :~p",[_Message]),
-  {next_state, binded, Data, []}.
+  error_logger:info_msg("FCM Connection ~p is ok",[self()]),
+  %% Pacer instanciation
+  QueueRef = make_ref(),
+  jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+  snatch:connected(claws_fcm),
+  error_logger:info_msg("Process ~p from ~p reporting it is ready to ~P",[self(), Data#data.con_name, Data#data.report_to]),
+  case Data#data.report_to of
+    Pid when is_pid(Pid) ->
+      Pid!{ready, Data#data.con_name, self()};
+    _ ->
+      ok
+  end,
+  {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 
 
@@ -170,6 +181,7 @@ binding(info, {ssl, _SSLSock, _Message}, Data) ->
   QueueRef = make_ref(),
   jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
+  error_logger:info_msg("Process ~p from ~p reporting it is ready to ~P",[self(), Data#data.con_name, Data#data.report_to]),
   case Data#data.report_to of
     Pid when is_pid(Pid) ->
       Pid!{ready, Data#data.con_name, self()};

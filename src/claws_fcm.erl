@@ -134,7 +134,7 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
 
   Workers = [Pid || {Pid, _} <- pooler:pool_stats(PoolName)],
 
-  error_logger:info_msg("Workers for ~p ~p",[ConnectionName, P]),
+  error_logger:info_msg("Workers for ~p ~p",[ConnectionName, Workers]),
 
   PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
 
@@ -213,6 +213,7 @@ handle_cast(_Request, State) ->
 
 
 handle_info({ready, ConName, Pid}, State) ->
+  error_logger:info_msg("Connection Process is readty :~p    ~p",[ConName, Pid]),
   ConnectionsStatus = State#state.connections_status,
   {_Status, PoolName, P, Workers} = maps:get(ConName, ConnectionsStatus, []),
   case lists:delete(Pid, Workers) of
