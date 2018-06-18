@@ -148,6 +148,8 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
           watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}};
 
     {ready, PoolName, P, Workers} ->
+      error_logger:info_msg("Connection ~p is ready ",[ConnectionName]),
+
       lists:foreach(
         fun(PidWatcher) ->
           PidWatcher!{connection_ready, ConnectionName} end, maps:get(ConnectionName, State#state.watchers,[])
@@ -155,7 +157,8 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
       {reply, {ConnectionName, PoolName, P},
         State};
 
-    {_, PoolName, P, Workers} ->
+    {ConState, PoolName, P, Workers} ->
+      error_logger:info_msg("Connection ~p already exists in state :~p ",[ConnectionName,ConState]),
       {FromPid, _ } = From,
       PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
       {reply, {ConnectionName, PoolName, P},
