@@ -164,7 +164,6 @@ wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
   QueueRef = make_ref(),
   jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
-  error_logger:info_msg("Process ~p from ~p reporting it is ready to ~P",[self(), Data#data.con_name, Data#data.report_to]),
   case Data#data.report_to of
     Pid when is_pid(Pid) ->
       Pid!{ready, Data#data.con_name, self()};
