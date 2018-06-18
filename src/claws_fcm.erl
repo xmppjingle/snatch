@@ -97,58 +97,66 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
 
+  case maps:get(ConnectionName, State#state.connections_status, undefined) of
+    undefined ->
+      %% Pooler takes only atoms as poolname ...
+      PoolName = case ConnectionName of
+                   Binary when is_binary(Binary) ->
+                     binary_to_atom(ConnectionName, latin1);
+                   Else when is_atom(Else)-> Else
+                 end,
 
-  %% Pooler takes only atoms as poolname ...
-  PoolName = case ConnectionName of
-               Binary when is_binary(Binary) ->
-                 binary_to_atom(ConnectionName, latin1);
-               Else when is_atom(Else)-> Else
-             end,
+      UpdatedFcmConf = maps:put(con_name, ConnectionName, FcmConfig),
 
-  UpdatedFcmConf = maps:put(con_name, ConnectionName, FcmConfig),
+      %% start a pool of process to consume from the push queue
+      PoolSpec = [
+        {name, PoolName},
+        {worker_module, claws_fcm_worker},
+        {size, PoolSize},
+        {max_overflow, 10},
+        {max_count, 10},
+        {init_count, 2},
+        {strategy, lifo},
+        {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), UpdatedFcmConf)]}},
+        {fcm_conf, UpdatedFcmConf}
+      ],
 
-  %% start a pool of process to consume from the push queue
-  PoolSpec = [
-    {name, PoolName},
-    {worker_module, claws_fcm_worker},
-    {size, PoolSize},
-    {max_overflow, 10},
-    {max_count, 10},
-    {init_count, 2},
-    {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), UpdatedFcmConf)]}},
-    {fcm_conf, UpdatedFcmConf}
-  ],
+      {ok, P} = try pooler:new_pool(PoolSpec) of
+                  Pp  ->
+                    Pp
+                catch
+                  M:E ->
+                    error_logger:error_msg("Error when creating pool :~p",[{M,E}])
+                end,
 
-  {ok, P} = try pooler:new_pool(PoolSpec) of
-              Pp  ->
-                Pp
-            catch
-              M:E ->
-                error_logger:error_msg("Error when creating pool :~p",[{M,E}])
-            end,
+      error_logger:info_msg("Pool creation result ~p",[P]),
 
-  error_logger:info_msg("Pool creation result ~p",[P]),
+      ConnectionsStatus = State#state.connections_status,
 
-  ConnectionsStatus = State#state.connections_status,
+      Workers = [Pid || {Pid, _} <- pooler:pool_stats(PoolName)],
 
-  Workers = [Pid || {Pid, _} <- pooler:pool_stats(PoolName)],
+      error_logger:info_msg("Workers for ~p ~p",[ConnectionName, Workers]),
 
-  error_logger:info_msg("Workers for ~p ~p",[ConnectionName, Workers]),
-
-  PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
-
-
-  error_logger:info_msg("From is ~p",[From]),
+      PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
 
 
-  {FromPid, _ } = From,
+      error_logger:info_msg("From is ~p",[From]),
+
+
+      {FromPid, _ } = From,
 
 
 
-  {reply, {ConnectionName, PoolName, P},
-    State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus),
-      watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}};
+      {reply, {ConnectionName, PoolName, P},
+        State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus),
+          watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}};
+
+    {_Status, PoolName, P, Workers} ->
+      {reply, {ConnectionName, PoolName, P},
+        State}
+
+  end;
+
 
 
 
