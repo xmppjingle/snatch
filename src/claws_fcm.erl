@@ -194,10 +194,10 @@ handle_call({close_connection, ConnectionName}, _From, State) ->
   case maps:get(ConnectionName,State#state.connections_status, undefined) of
     {_State, PoolName, _P, _Workers} ->
       pooler:rm_pool(PoolName),
-      {ok, State#state{connections_status = maps:remove(ConnectionName,State#state.connections_status)}};
+      {reply, ok, State#state{connections_status = maps:remove(ConnectionName,State#state.connections_status)}};
     undefined ->
       error_logger:info_msg("Can't close connection ~p as it doesnt exists.",[ConnectionName]),
-      {ok, State}
+      {reply, ok, State}
   end;
 
 
