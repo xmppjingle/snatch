@@ -157,10 +157,9 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
 
     {_, PoolName, P, Workers} ->
       {FromPid, _ } = From,
+      PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
       {reply, {ConnectionName, PoolName, P},
-        PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
         State#state{watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}}
-
   end;
 
 
