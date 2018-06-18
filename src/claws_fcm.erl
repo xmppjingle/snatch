@@ -105,6 +105,7 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
                Else when is_atom(Else)-> Else
              end,
 
+  UpdatedFcmConf = maps:put(con_name, ConnectionName, FcmConfig),
 
   %% start a pool of process to consume from the push queue
   PoolSpec = [
@@ -115,8 +116,8 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
     {max_count, 10},
     {init_count, 2},
     {strategy, lifo},
-    {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), FcmConfig)]}},
-    {fcm_conf, FcmConfig}
+    {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), UpdatedFcmConf)]}},
+    {fcm_conf, UpdatedFcmConf}
   ],
 
   {ok, P} = try pooler:new_pool(PoolSpec) of
