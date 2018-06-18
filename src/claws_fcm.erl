@@ -226,7 +226,8 @@ handle_info({ready, ConName, Pid}, State) ->
               watchers = maps:put(ConName,[],State#state.watchers)}};
 
           NewListOfWorkers ->
-            {noreply,State#state{connections_status = maps:put(ConName,{connecting, PoolName, P, []}, NewListOfWorkers)}}
+            error_logger:info_msg("New Worker List :~p   ~p",[ConName, NewListOfWorkers]),
+            {noreply,State#state{connections_status = maps:put(ConName,{connecting, PoolName, P, NewListOfWorkers}, ConnectionsStatus)}}
   end;
 
 
