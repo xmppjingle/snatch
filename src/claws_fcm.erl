@@ -218,12 +218,13 @@ handle_info({ready, ConName, Pid}, State) ->
   {_Status, PoolName, P, Workers} = maps:get(ConName, ConnectionsStatus, []),
   case lists:delete(Pid, Workers) of
           [] ->
+            error_logger:info_msg("All workers ready. Notifying : ~p",[State#state.watchers]),
             lists:foreach(
               fun(PidWatcher) ->
                 PidWatcher!{connection_ready, ConName} end, maps:get(ConName, State#state.watchers,[])
             ),
             {noreply,State#state{connections_status = maps:put(ConName,{ready, PoolName, P, []},ConnectionsStatus),
-              watchers = maps:put(ConName,[],State#state.watchers)}};
+              watchers = maps:put(ConName,[],maps:get(ConName, State#state.watchers,[])}};
 
           NewListOfWorkers ->
             error_logger:info_msg("New Worker List :~p   ~p",[ConName, NewListOfWorkers]),
