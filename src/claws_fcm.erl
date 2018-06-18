@@ -139,21 +139,27 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
 
       PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
 
-
       error_logger:info_msg("From is ~p",[From]),
 
-
       {FromPid, _ } = From,
-
-
 
       {reply, {ConnectionName, PoolName, P},
         State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus),
           watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}};
 
-    {_Status, PoolName, P, Workers} ->
+    {ready, PoolName, P, Workers} ->
+      lists:foreach(
+        fun(PidWatcher) ->
+          PidWatcher!{connection_ready, ConnectionName} end, maps:get(ConnectionName, State#state.watchers,[])
+      ),
       {reply, {ConnectionName, PoolName, P},
-        State}
+        State};
+
+    {_, PoolName, P, Workers} ->
+      {FromPid, _ } = From,
+      {reply, {ConnectionName, PoolName, P},
+        PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
+        State#state{watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}}
 
   end;
 
