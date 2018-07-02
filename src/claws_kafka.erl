@@ -4,7 +4,8 @@
 -behaviour(claws).
 
 -export([start_link/1,
-         stop/1]).
+         stop/1,
+         ack/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -36,6 +37,8 @@ start_link(Params) ->
 stop(PID) ->
     ok = gen_server:stop(PID).
 
+ack(#kafka_message{offset = Offset}, {Topic, Partition}) ->
+    brod:consume_ack(?KAFKA_CLIENT, Topic, Partition, Offset).
 
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
@@ -63,6 +66,7 @@ start_subscriber({InTopic, {group, GroupId}}, Opts) ->
     {brod_group_subscriber, PID};
 start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    AutoAckConfig = maps:get(auto_ack, Opts, true),
     CommitOffsets = [],
     State = #{topic => InTopic, partitions => InPartitions},
     {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
@@ -86,9 +90,14 @@ default_consumer_config() ->
 
 
 %% brod_topic_subscriber:cb_fun()
-subscriber_callback(Partition, Msg, #{topic := Topic} = State) ->
+subscriber_callback(Partition, Msg, #{topic := Topic,
+                                      auto_ack := true} = State) ->
     gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
-    {ok, ack, State}.
+    {ok, ack, State};
+subscriber_callback(Partition, Msg, #{topic := Topic,
+                                      auto_ack := false} = State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
+    {ok, State}.
 
 
 %% brod_group_subscriber init/2 impl
