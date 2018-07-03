@@ -5,7 +5,7 @@
 -behaviour(claws).
 
 %% Application callbacks
--export([ start_link/1, start/0, send/2, send/3, push/3, stop/1]).
+-export([ start_link/1, send/2, send/3, push/3, push_token/4]).
 
 %% Supervisor callbacks
 -export([ init/1]).
@@ -14,12 +14,6 @@
 
 start_link(ApnsConfig) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, ApnsConfig).
-
-stop(_State) ->
-    ok.
-
-start() ->
-    application:ensure_all_started(claws_apns).
 
 init(ApnsConfig) ->
     WPoolOptions  = [ {overrun_warning, infinity}
@@ -34,7 +28,7 @@ init(ApnsConfig) ->
     },
 
     Children = [#{ id       => wpool
-        , start    => {wpool, start_pool, [claws_apns_sup, WPoolOptions]}
+        , start    => {wpool, start_pool, [pool_name(), WPoolOptions]}
         , restart  => permanent
         , shutdown => 5000
         , type     => supervisor
@@ -45,6 +39,9 @@ init(ApnsConfig) ->
 
 push(Data, DeviceId, ApnsTopic) ->
     wpool:call(pool_name(), {push, DeviceId, ApnsTopic, Data}).
+
+push_token(Token, Data, DeviceId, ApnsTopic) ->
+    wpool:call(pool_name(), {push_token, Token, DeviceId, ApnsTopic, Data}).
 
 send(Data, DeviceId) ->
     push(Data, DeviceId, ?DEFAULT_TOPIC).

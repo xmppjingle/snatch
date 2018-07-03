@@ -22,6 +22,12 @@ handle_call({push, DeviceId, ApnsTopic, Notification}, _From, State) ->
     Response = apns:push_notification(ConnectionPid, DeviceId, Notification, Headers),
     {reply, Response, State};
 
+handle_call({push_token, Token, DeviceId, ApnsTopic, Notification}, _From, State) ->
+    #{connection_pid := ConnectionPid} = State,
+    Headers = #{apns_topic => ApnsTopic},
+    Response = apns:push_notification_token(ConnectionPid, Token, DeviceId, Notification, Headers),
+    {reply, Response, State};
+
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
