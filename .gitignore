@@ -14,4 +14,6 @@ cobertura.xml
 rebar3.crashdump
 .idea/
 snatch.iml
-
+AuthKey_HBJ5WFCKUK.p8
+cert12.pem
+key2-noenc.pem

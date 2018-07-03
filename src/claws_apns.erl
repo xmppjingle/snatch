@@ -28,7 +28,7 @@ init(ApnsConfig) ->
     },
 
     Children = [#{ id       => wpool
-        , start    => {wpool, start_pool, [pool_name(), WPoolOptions]}
+        , start    => {wpool, start_pool, [claws_apns_pool, WPoolOptions]}
         , restart  => permanent
         , shutdown => 5000
         , type     => supervisor
@@ -38,15 +38,13 @@ init(ApnsConfig) ->
     {ok, {SupFlags, Children}}.
 
 push(Data, DeviceId, ApnsTopic) ->
-    wpool:call(pool_name(), {push, DeviceId, ApnsTopic, Data}).
+    wpool:call(claws_apns_pool, {push, DeviceId, ApnsTopic, Data}).
 
 push_token(Token, Data, DeviceId, ApnsTopic) ->
-    wpool:call(pool_name(), {push_token, Token, DeviceId, ApnsTopic, Data}).
+    wpool:call(claws_apns_pool, {push_token, Token, DeviceId, ApnsTopic, Data}).
 
 send(Data, DeviceId) ->
     push(Data, DeviceId, ?DEFAULT_TOPIC).
 
 send(Data, DeviceId, ApnsTopic) ->
     push(DeviceId, Data, ApnsTopic).
-
-pool_name() -> ?MODULE.
