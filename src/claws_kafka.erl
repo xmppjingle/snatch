@@ -42,6 +42,7 @@ ack(#kafka_message{offset = Offset}, {Topic, Partition}) ->
 
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
+    timer:sleep(500), % Avoid intense restarts
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
     case maps:get(out_topic, Opts, undefined) of
         undefined ->
