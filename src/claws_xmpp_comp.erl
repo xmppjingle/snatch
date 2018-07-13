@@ -33,6 +33,8 @@
          ready/3]).
 -export([send/2, send/3]).
 
+-export([resolve_hosts/1, resolve_hosts/2, select_host/2]).
+
 -define(INIT(D),
         <<"<?xml version='1.0' encoding='UTF-8'?>"
           "<stream:stream to='", D/binary, "' "
@@ -83,6 +85,27 @@ callback_mode() -> handle_event_function.
 
 %% API
 
+resolve_hosts(Name) ->
+    resolve_hosts(Name, a).
+
+resolve_hosts(Name, Type) ->
+    [inet:ntoa(X) || X <- inet_res:lookup(Name, any, Type)].
+
+select_host(Name, Pref) ->
+    select_host(Name, resolve_hosts(Name), Pref).
+
+select_host(Name, [], _) ->
+    Name;
+select_host(_Name, [H|_] = Hosts, local_preferred) ->
+    {ok, Local} = inet:gethostname(),
+    LocalIP = inet:ntoa(inet:getaddr(Local, inet)),
+    case lists:member(LocalIP, Hosts) of
+        true -> LocalIP;
+        _ ->    H
+    end;
+select_host(_Name, [H|_], _) ->
+    H.    
+
 -spec connect() -> ok.
 connect() -> 
     ok = gen_statem:cast(?SERVER, connect).
@@ -95,7 +118,7 @@ disconnect() ->
 
 disconnected(Type, connect, #data{host = Host, port = Port} = Data)
         when Type =:= cast orelse Type =:= state_timeout ->
-    case gen_tcp:connect(Host, Port, [binary, {active, true}], 1000) of
+    case gen_tcp:connect(select_host(Host, local_preferred), Port, [binary, {active, true}], 1000) of
         {ok, NewSocket} ->
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};
