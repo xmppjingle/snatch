@@ -89,7 +89,7 @@ resolve_hosts(Name) ->
     resolve_hosts(Name, a).
 
 resolve_hosts(Name, Type) ->
-    [inet:ntoa(X) || X <- inet_res:lookup(Name, any, Type)].
+    [inet:ntoa(X) || X <- inet_res:lookup(Name, any, Type, [{usevc, true}])].
 
 select_host(Name, Pref) ->
     select_host(Name, resolve_hosts(Name), Pref).
