@@ -11,6 +11,8 @@
                     p1_utils,
                     brod,
                     pooler,
+                    worker_pool,
+                    apns,
                     ibrowse,
                     jobs]},
     {env, []},
