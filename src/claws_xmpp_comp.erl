@@ -97,8 +97,8 @@ select_host(Name, Pref) ->
 select_host(Name, [], _) ->
     Name;
 select_host(_Name, [H|_] = Hosts, local_preferred) ->
-    {ok, Local} = inet:gethostname(),
-    LocalIP = inet:ntoa(inet:getaddr(Local, inet)),
+    {ok, Local} = inet:getaddr(net_adm:localhost(), inet),
+    LocalIP = inet:ntoa(Local),
     case lists:member(LocalIP, Hosts) of
         true -> LocalIP;
         _ ->    H
