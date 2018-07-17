@@ -10,7 +10,6 @@
                     rabbit_common,
                     p1_utils,
                     brod,
-                    apns,
                     pooler,
                     worker_pool,
                     apns,
