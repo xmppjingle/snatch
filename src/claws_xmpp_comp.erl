@@ -126,19 +126,22 @@ disconnected(Type, connect, #data{host = Host, port = Port} = Data)
             error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
                                    [Host, Port, Error]),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
-    end.
-
+    end;
+disconnected(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 retrying(cast, connect, Data) ->
-    {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
-
+    {next_state, disconnected, Data, [{state_timeout, 3000, connect}]};
+retrying(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 connected(cast, init_stream, #data{} = Data) ->
     Opts = [no_gen_server],
     Stream = fxml_stream:new(whereis(?SERVER), infinity, Opts),
     {next_state, stream_init, Data#data{stream = Stream},
-     [{next_event, cast, init}]}.
-
+     [{next_event, cast, init}]};
+connected(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
     gen_tcp:send(Socket, ?INIT(Domain)),
@@ -153,8 +156,9 @@ stream_init(cast, {received, {xmlstreamstart, _, Attribs}}, Data) ->
             error_logger:error_msg("stream invalid, no Stream ID", []),
             gen_tcp:close(Data#data.socket),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
-    end.
-
+    end;
+stream_init(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 authenticate(cast, {handshake, StreamID},
              #data{socket = Socket, password = Secret} = Data) ->
@@ -166,7 +170,10 @@ authenticate(cast, {handshake, StreamID},
 
 authenticate(cast, {received, #xmlel{name = <<"handshake">>,
                                      children = []}}, Data) ->
-    {next_state, ready, Data, timeout_action(Data)}.
+    {next_state, ready, Data, timeout_action(Data)};
+
+authenticate(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 remove_attr(Name, #xmlel{attrs = Attrs} = XmlEl) ->
     XmlEl#xmlel{attrs = proplists:delete(Name, Attrs)}.
@@ -216,8 +223,10 @@ ready(cast, {received, Packet}, #data{trimmed = false} = Data) ->
     To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     snatch:received(Packet, Via),
-    {keep_state_and_data, timeout_action(Data)}.
+    {keep_state_and_data, timeout_action(Data)};
 
+ready(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 handle_event(timeout, ping, _State, #data{socket = Socket} = Data) ->
     gen_tcp:send(Socket, <<"\n">>),
