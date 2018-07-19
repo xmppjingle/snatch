@@ -171,17 +171,18 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State)
 
 
 handle_call({send, Data, AppId}, _From, State) ->
-  case maps:get(AppId,State#state.connections, undefined) of
-    undefined ->
-      {reply, no_connection, State};
+  try dict:fetch(AppId,State#state.connections) of
     Connection ->
           P = pooler:take_member(Connection),
           error_logger:info_msg("Pool member :~p",[P]),
           gen_statem:cast(P, {send, Data}),
           pooler:return_member(Connection, P, ok),
           {reply, ok, State}
-
-    end;
+    catch
+        M:E ->
+          error_logger:info_msg("Error when fetching connection for appid :~p ",[{M,E}]),
+          {reply, ok, State}
+  end;
 
 
 
