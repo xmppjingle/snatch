@@ -15,7 +15,7 @@
 -include_lib("ibrowse/include/ibrowse.hrl").
 -include("snatch.hrl").
 
--export([start_link/0,
+-export([start_link/0, start_link/1,
   stop/0]).
 
 -export([init/1,
@@ -32,7 +32,8 @@
 -record(state, {
   poolpid :: pid() | undefined,
   watchers = #{} :: map(),
-  connections_status = #{}
+  connections_status = #{},
+  connections
   }).
 
 %%%===================================================================
@@ -50,6 +51,8 @@
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
+start_link(FcmConfig) ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [FcmConfig], []).
 
 
 stop() ->
@@ -74,10 +77,22 @@ stop() ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init(_) ->
+init([]) ->
   %% Start the push queue with rate control
-  {ok, #state{}}.
+  {ok, #state{connections = dict:new()}};
 
+init([FcmAdd, FcmPort, Connections]) ->
+  %% Start the push queue with rate control
+  lists:foreach(
+    fun(Connection) ->
+      {ServerId, ServerKey, PoolSize, AppIds} = Connection,
+
+      %%con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}
+      gen_server:call(self(),{new_connection, PoolSize, ServerId, #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}})
+    end,
+    Connections
+  ),
+  {ok, #state{}}.
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -93,7 +108,7 @@ init(_) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) ->
+handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State) ->
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
 
@@ -117,7 +132,7 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
         {max_count, 10},
         {init_count, 2},
         {strategy, lifo},
-        {start_mfa, {claws_fcm_worker, start_link, [maps:put(<<"report_to">>, self(), UpdatedFcmConf)]}},
+        {start_mfa, {claws_fcm_worker, start_link, [UpdatedFcmConf]}},
         {fcm_conf, UpdatedFcmConf}
       ],
 
@@ -131,61 +146,40 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, From, State) 
 
       error_logger:info_msg("Pool creation result ~p",[P]),
 
-      ConnectionsStatus = State#state.connections_status,
 
-      Workers = [Pid || {Pid, _} <- pooler:pool_stats(PoolName)],
+      NewConList = lists:foldl(
+        fun(AppId, Dict) ->
+          dict:store(AppId, PoolName, Dict) end,
+        State#state.connections, maps:get(app_ids, FcmConfig)
 
-      error_logger:info_msg("Workers for ~p ~p",[ConnectionName, Workers]),
-
-      PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
-
-      error_logger:info_msg("From is ~p",[From]),
-
-      {FromPid, _ } = From,
-
-      {reply, {ConnectionName, PoolName, P},
-        State#state{connections_status = maps:put(ConnectionName, {connecting, PoolName, P, Workers}, ConnectionsStatus),
-          watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}};
-
-    {ready, PoolName, P, Workers} ->
-      error_logger:info_msg("Connection ~p is ready, notifying :~p ",[ConnectionName, maps:get(ConnectionName, State#state.watchers,[])]),
-
-      lists:foreach(
-        fun(PidWatcher) ->
-          PidWatcher!{connection_ready, ConnectionName} end, maps:get(ConnectionName, State#state.watchers,[])
       ),
-      {reply, {ConnectionName, PoolName, P},
-        State};
 
-    {ConState, PoolName, P, Workers} ->
-      error_logger:info_msg("Connection ~p already exists in state :~p ",[ConnectionName,ConState]),
-      {FromPid, _ } = From,
-      PreviousWatchers = maps:get(ConnectionName, State#state.watchers,[]),
+      error_logger:info_msg("New Con List ~p",[NewConList]),
+
+
       {reply, {ConnectionName, PoolName, P},
-        State#state{watchers = maps:put(ConnectionName, [FromPid| PreviousWatchers], State#state.watchers)}}
+        State#state{connections = NewConList}};
+
+    _ ->
+      error_logger:info_msg("Connection ~p is already openned :~p ",[ConnectionName]),
+
+      {reply, already_openned, State}
   end;
 
 
 
 
-handle_call({send, Data, ConnectionName}, _From, State) ->
-  case maps:get(ConnectionName,State#state.connections_status, undefined) of
+handle_call({send, Data, AppId}, _From, State) ->
+  case maps:get(AppId,State#state.connections, undefined) of
     undefined ->
       {reply, no_connection, State};
-    {ConnectionStatus, PoolName, _P, _Workers} ->
-      case ConnectionStatus of
-        ready ->
-          error_logger:info_msg("Sendng ~p    to pool :~p",[Data, PoolName]),
-
-          P = pooler:take_member(PoolName),
+    Connection ->
+          P = pooler:take_member(Connection),
           error_logger:info_msg("Pool member :~p",[P]),
           gen_statem:cast(P, {send, Data}),
-          pooler:return_member(PoolName, P, ok),
-          {reply, ok, State};
-        Else ->
-          error_logger:info_msg("Cannot send, FCM connection in state :~p",[Else]),
-          {reply, connection_not_ready, State}
-      end
+          pooler:return_member(Connection, P, ok),
+          {reply, ok, State}
+
     end;
 
 
