@@ -82,7 +82,7 @@ init([]) ->
   %% Start the push queue with rate control
   {ok, #state{connections = dict:new()}};
 
-init([#{gcs_add := FcmAdd, gcs_port = FcmPort, connections := Connections}]) ->
+init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
   %% Start the push queue with rate control
   lists:foreach(
     fun(Connection) ->
