@@ -52,7 +52,7 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start_link(FcmConfig) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [FcmConfig], []).
+  gen_server:start_link({local, ?SERVER}, ?MODULE, FcmConfig, []).
 
 
 stop() ->
