@@ -84,7 +84,7 @@ init([]) ->
 
 init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
   %% Start the push queue with rate control
-  lists:foreach(
+  spawn(lists,foreach, [
     fun(Connection) ->
       {ServerId, ServerKey, PoolSize, AppIds} = Connection,
 
@@ -92,7 +92,7 @@ init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
       gen_server:call(self(),{new_connection, PoolSize, ServerId, #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}})
     end,
     Connections
-  ),
+  ]),
   {ok, #state{connections = dict:new()}}.
 %%--------------------------------------------------------------------
 %% @private
