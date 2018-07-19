@@ -52,6 +52,7 @@ start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start_link(FcmConfig) ->
+  error_logger:info_msg("starting new connection to FCM :~p",[FcmConfig]),
   gen_server:start_link({local, ?SERVER}, ?MODULE, FcmConfig, []).
 
 
@@ -81,7 +82,7 @@ init([]) ->
   %% Start the push queue with rate control
   {ok, #state{connections = dict:new()}};
 
-init([FcmAdd, FcmPort, Connections]) ->
+init([#{gcs_add := FcmAdd, gcs_port = FcmPort, connections := Connections}]) ->
   %% Start the push queue with rate control
   lists:foreach(
     fun(Connection) ->
@@ -92,7 +93,7 @@ init([FcmAdd, FcmPort, Connections]) ->
     end,
     Connections
   ),
-  {ok, #state{}}.
+  {ok, #state{connections = dict:new()}}.
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
