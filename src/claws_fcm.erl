@@ -86,17 +86,29 @@ init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
   error_logger:info_msg("Initialising new connections to FCM :~p",[{FcmPort, FcmAdd, Connections}]),
 
   %% Start the push queue with rate control
-  spawn(lists,foreach, [
-    fun(Connection) ->
+  AppIdIndexedCons = lists:foldl(
+    fun(Connection, Acc) ->
       error_logger:info_msg("Initialising  connection  :~p",[Connection]),
       {ServerId, ServerKey, PoolSize, AppIds} = Connection,
 
       %%con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}
-      gen_server:call(self(),{new_connection, PoolSize, ServerId, #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}})
+      case new_connection(PoolSize, ServerId, #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}) of
+        error ->
+          ok;
+        {_, PoolName} ->
+          lists:foldl(
+            fun(AppId) ->
+              dict:store(AppId, PoolName, Acc)
+            end,
+            #{},
+            AppIds
+          )
+      end
     end,
+    #{},
     Connections
-  ]),
-  {ok, #state{connections = dict:new()}}.
+  ),
+  {ok, #state{connections = AppIdIndexedCons}}.
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -290,10 +302,6 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 
-new_connection(PoolSize, ConnectionName, FcmConfig)  ->
-  gen_server:call(?SERVER, {new_connection, PoolSize, ConnectionName, FcmConfig}).
-
-
 send(Data, ConnectionName) ->
   gen_server:call(?SERVER, {send, Data, ConnectionName}).
 
@@ -307,6 +315,36 @@ close_connections(ConnectionName) ->
 %%% Internal functions
 %%%===================================================================
 
+
+new_connection(PoolSize, ConnectionName, FcmConfig) when is_atom(ConnectionName)->
+  %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+  error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
+
+
+  UpdatedFcmConf = maps:put(con_name, ConnectionName, FcmConfig),
+
+  %% start a pool of process to consume from the push queue
+  PoolSpec = [
+    {name, ConnectionName},
+    {worker_module, claws_fcm_worker},
+    {size, PoolSize},
+    {max_overflow, 10},
+    {max_count, 10},
+    {init_count, 2},
+    {strategy, lifo},
+    {start_mfa, {claws_fcm_worker, start_link, [UpdatedFcmConf]}},
+    {fcm_conf, UpdatedFcmConf}
+  ],
+
+  try pooler:new_pool(PoolSpec) of
+    Pp  ->
+      error_logger:info_msg("Pool creation result ~p",[Pp]),
+      {Pp, ConnectionName}
+
+  catch
+    M:E ->
+      error_logger:error_msg("Error when creating pool :~p",[{M,E}])
+  end.
 
 
 
