@@ -105,7 +105,7 @@ init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
           )
       end
     end,
-    #{},
+    dict:new(),
     Connections
   ),
   {ok, #state{connections = AppIdIndexedCons}}.
