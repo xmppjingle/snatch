@@ -83,9 +83,12 @@ init([]) ->
   {ok, #state{connections = dict:new()}};
 
 init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
+  error_logger:info_msg("Initialising new connections to FCM :~p",[{FcmPort, FcmAdd, Connections}]),
+
   %% Start the push queue with rate control
   spawn(lists,foreach, [
     fun(Connection) ->
+      error_logger:info_msg("Initialising  connection  :~p",[Connection]),
       {ServerId, ServerKey, PoolSize, AppIds} = Connection,
 
       %%con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}
@@ -171,6 +174,7 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State)
 
 
 handle_call({send, Data, AppId}, _From, State) ->
+  error_logger:info_msg("Fetching connection for appid :~p ",[AppId, State#state.connections]),
   try dict:fetch(AppId,State#state.connections) of
     Connection ->
           P = pooler:take_member(Connection),
