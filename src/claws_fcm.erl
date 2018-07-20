@@ -348,8 +348,7 @@ new_connection(PoolSize, ConnectionName, FcmConfig) ->
   end.
 
 serverid_to_atom(ServerId) ->
-  S = integer_to_list(ServerId),
-  list_to_atom([$c|S]).
+  binary_to_atom(<<$c,ServerId/binary>>, utf8).
 
 %% Data is :
 %% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
