@@ -92,7 +92,7 @@ init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
       {ServerId, ServerKey, PoolSize, AppIds} = Connection,
 
       %%con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}
-      case new_connection(PoolSize, ServerId, #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}) of
+      case new_connection(PoolSize, serverid_to_atom(ServerId), #{app_ids => AppIds, gcs_add => FcmAdd, gcs_port => FcmPort, server_id => ServerId, server_key => ServerKey}) of
         error ->
           ok;
         {_, PoolName} ->
@@ -343,10 +343,13 @@ new_connection(PoolSize, ConnectionName, FcmConfig) ->
 
   catch
     M:E ->
-      error_logger:error_msg("Error when creating pool :~p",[{M,E}])
+      error_logger:error_msg("Error when creating pool :~p",[{M,E}]),
+      error
   end.
 
-
+serverid_to_atom(ServerId) ->
+  S = integer_to_list(ServerId),
+  list_to_atom([$c|S]).
 
 %% Data is :
 %% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
