@@ -316,7 +316,7 @@ close_connections(ConnectionName) ->
 %%%===================================================================
 
 
-new_connection(PoolSize, ConnectionName, FcmConfig) when is_atom(ConnectionName)->
+new_connection(PoolSize, ConnectionName, FcmConfig) ->
   %%jobs:add_queue(PoolName,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   error_logger:info_msg("Creating new connection to FCM :~p",[{ConnectionName, FcmConfig}]),
 
