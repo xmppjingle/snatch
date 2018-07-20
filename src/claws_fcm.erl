@@ -97,10 +97,10 @@ init([#{gcs_add := FcmAdd, gcs_port := FcmPort, connections := Connections}]) ->
           ok;
         {_, PoolName} ->
           lists:foldl(
-            fun(AppId) ->
-              dict:store(AppId, PoolName, Acc)
+            fun(AppId, Acc2) ->
+              dict:store(AppId, PoolName, Acc2)
             end,
-            #{},
+            Acc,
             AppIds
           )
       end
