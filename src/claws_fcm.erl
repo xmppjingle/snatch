@@ -186,7 +186,7 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State)
 
 
 handle_call({send, Data, AppId}, _From, State) ->
-  error_logger:info_msg("Fetching connection for appid :~p ",[AppId, State#state.connections]),
+  error_logger:info_msg("Fetching connection for appid :~p ",[{AppId, State#state.connections}]),
   try dict:fetch(AppId,State#state.connections) of
     Connection ->
           P = pooler:take_member(Connection),
@@ -196,7 +196,7 @@ handle_call({send, Data, AppId}, _From, State) ->
           {reply, ok, State}
     catch
         M:E ->
-          error_logger:info_msg("Error when fetching connection for appid :~p ",[{M,E}]),
+          error_logger:info_msg("Error when fetching connection for appid :~p",[{M,E}]),
           {reply, ok, State}
   end;
 
