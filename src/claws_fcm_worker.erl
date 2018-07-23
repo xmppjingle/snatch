@@ -1,6 +1,6 @@
 -module(claws_fcm_worker).
 -behaviour(gen_statem).
-%%-behaviour(claws).
+-behaviour(claws).
 
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -11,10 +11,7 @@
   server_id,
   server_key,
   socket :: gen_tcp:socket(),
-  pacer_entry,
-  stream,
-  report_to,
-  con_name
+  stream
 }).
 
 -export([start_link/1, connect/0, disconnect/0]).
@@ -85,19 +82,13 @@ disconnect() ->
 
 disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
   when Type =:= cast orelse Type =:= state_timeout ->
-  error_logger:info_msg("Connecting claw :~p",[self()]),
-  try ssl:connect(Host, Port, [binary, {active, true}]) of
+  case ssl:connect(Host, Port, [binary, {active, true}]) of
     {ok, NewSocket} ->
-      error_logger:info_msg("socket claw connected :~p",[self()]),
       {next_state, connected, Data#data{socket = NewSocket},
         [{next_event, cast, init_stream}]};
     Error ->
       error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
         [Host, Port, Error]),
-      {next_state, retrying, Data, [{next_event, cast, connect}]}
-  catch
-    M:E ->
-      error_logger:error_msg("Connecting Error :~p",[{M,E}]),
       {next_state, retrying, Data, [{next_event, cast, connect}]}
   end;
 
@@ -108,13 +99,11 @@ retrying(cast, connect, Data) ->
   {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
 
 connected(cast, init_stream, #data{} = Data) ->
-  error_logger:info_msg("FCM connected :~p",[self()]),
   Stream = fxml_stream:new(self()),
   {next_state, stream_init, Data#data{stream = Stream},
     [{next_event, cast, init}]}.
 
 stream_init(cast, init, #data{socket = Socket} = Data) ->
-  error_logger:info_msg("initialising stream :~p",[self()]),
   ssl:send(Socket, ?INIT),
   {keep_state, Data, []};
 
@@ -129,13 +118,11 @@ wait_for_features(info, {ssl, _SSLSocket, _Message}, Data) ->
 authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
   socket = Socket} = Data) ->
   B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
-  error_logger:info_msg("Sending claw auth FCM :~p",[?AUTH_SASL(B64)]),
 
   ssl:send(Socket, ?AUTH_SASL(B64)),
   {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
-  error_logger:info_msg("FCM authenticate Received :~p",[_Message]),
   {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
@@ -146,13 +133,11 @@ bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
   {keep_state, Data#data{stream = NewStream}, []};
 
 bind(info, {ssl, _SSLSock, _Message}, Data) ->
-  error_logger:info_msg("FCM bind Received :~p",[_Message]),
   {next_state, wait_for_binding, Data, []}.
 
 
 
 wait_for_binding(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
-  error_logger:info_msg("FCM wait_for_binding Received :~p",[_Message]),
   ssl:send(Socket, ?BIND),
   {next_state, wait_for_result, Data, []}.
 
@@ -197,6 +182,7 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
   send_push(jsone:encode(JSONPayload), Socket),
+  error_logger:info_msg("Encoded json :~p",[jsone:encode(JSONPayload)]),
   {keep_state_and_data, []};
 
 
@@ -207,36 +193,16 @@ binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Final map :~p",[FinalMap]),
 
   send_push(jsone:encode(FinalMap), Socket),
-
   {keep_state_and_data, []};
 
 
-%%binded(cast, {received, #xmlel{} = Packet}, _Data) ->
-%%  error_logger:info_msg("Puscomp received ~p",[Packet]),
-%%  From = snatch_xml:get_attr(<<"from">>, Packet),
-%%  To = snatch_xml:get_attr(<<"to">>, Packet),
-%%  Via = #via{jid = From, exchange = To, claws = ?MODULE},
-%%  snatch:received(Packet, Via),
-%%  {keep_state_and_data, []};
-
-
-binded(cast, {received, #xmlel{} = Message}, Data) ->
-  DecPak = fxml_stream:parse_element(Message),
-  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
-  case DecPak#xmlel.name of
-    <<"message">> ->
-      case process_fcm_message(DecPak, Data) of
-        ok ->
-          {keep_state_and_data, []};
-        {next_state, State} ->
-          {next_state, State, Data, []};
-        _ ->
-          {keep_state_and_data, []}
-      end;
-    _ ->
-      snatch:received(DecPak),
-      {keep_state_and_data, []}
-  end;
+binded(cast, {received, #xmlel{} = Packet}, _Data) ->
+  error_logger:info_msg("Puscomp received ~p",[Packet]),
+  From = snatch_xml:get_attr(<<"from">>, Packet),
+  To = snatch_xml:get_attr(<<"to">>, Packet),
+  Via = #via{jid = From, exchange = To, claws = ?MODULE},
+  snatch:received(Packet, Via),
+  {keep_state_and_data, []};
 
 
 %% KEEP alive

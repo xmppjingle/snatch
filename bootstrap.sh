@@ -17,5 +17,8 @@ sleep 1
 bin/kafka-server-start.sh config/server.properties &
 sleep 5
 
+bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic xmpp.in
+bin/kafka-topics.sh --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic xmpp.out
+
 cd ..
 mv kafka_$KAFKA_VERSION /tmp/kafka

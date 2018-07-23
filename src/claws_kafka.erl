@@ -4,7 +4,8 @@
 -behaviour(claws).
 
 -export([start_link/1,
-         stop/1]).
+         stop/1,
+         ack/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -36,9 +37,12 @@ start_link(Params) ->
 stop(PID) ->
     ok = gen_server:stop(PID).
 
+ack(#kafka_message{offset = Offset}, {Topic, Partition}) ->
+    brod:consume_ack(?KAFKA_CLIENT, Topic, Partition, Offset).
 
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
+    timer:sleep(500), % Avoid intense restarts
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
     case maps:get(out_topic, Opts, undefined) of
         undefined ->
@@ -47,7 +51,6 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
             ProdConfig = [],
             ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
     end,
-    SubscriberCallbackFun = fun subscriber_callback/3,
     Subscribers = lists:map(fun (InTopic) -> start_subscriber(InTopic, Opts) end,
                             InTopics),
     {ok, Opts#{subscribers => Subscribers}}.
@@ -55,23 +58,32 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
 start_subscriber({InTopic, {group, GroupId}}, Opts) ->
     GroupConfig = maps:get(group_config, Opts, default_group_config()),
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    _GroupSubscriber = {GSModule, GSInitState0} = maps:get(group_subscriber, Opts,
+                                                           default_group_subscriber()),
+    MessageType = maps:get(message_type, Opts, default_message_type()),
+    GSInitState = maps:merge(#{group => GroupId}, GSInitState0),
     {ok, PID} = brod_group_subscriber:start_link(?KAFKA_CLIENT, GroupId, [InTopic],
                                                  GroupConfig, ConsumerConfig,
-                                                 _MessageType = message,
-                                                 _CallbackModule  = ?MODULE,
-                                                 _CallbackInitArg = #{}),
+                                                 MessageType,
+                                                 _CallbackModule  = GSModule,
+                                                 _CallbackInitArg = GSInitState),
     {brod_group_subscriber, PID};
 start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
+    AutoAckConfig = maps:get(auto_ack, Opts, true),
+    MessageType = maps:get(message_type, Opts, default_message_type()),
     CommitOffsets = [],
+    State = #{topic => InTopic,
+              partitions => InPartitions,
+              auto_ack => AutoAckConfig},
     {ok, PID} = brod_topic_subscriber:start_link(?KAFKA_CLIENT,
                                                  InTopic,
                                                  InPartitions,
                                                  ConsumerConfig,
                                                  CommitOffsets,
-                                                 _MessageType = message,
+                                                 MessageType,
                                                  fun subscriber_callback/3,
-                                                 _CallbackState = self()),
+                                                 State),
     {brod_topic_subscriber, PID}.
 
 
@@ -83,11 +95,22 @@ default_group_config() ->
 default_consumer_config() ->
     [{begin_offset, earliest}].
 
+default_message_type() ->
+    message.
+
+default_group_subscriber() ->
+    {?MODULE, #{}}.
+
 
 %% brod_topic_subscriber:cb_fun()
-subscriber_callback(Partition, Msg, CallbackState) ->
-    gen_server:cast(?MODULE, {received, Msg, Partition}),
-    {ok, ack, CallbackState}.
+subscriber_callback(Partition, Msg, #{topic := Topic,
+                                      auto_ack := true} = State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
+    {ok, ack, State};
+subscriber_callback(Partition, Msg, #{topic := Topic,
+                                      auto_ack := false} = State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
+    {ok, State}.
 
 
 %% brod_group_subscriber init/2 impl
@@ -96,23 +119,23 @@ init(_Topic, #{} = SubscriberState) ->
 
 
 %% brod_group_subscriber handle_message/4 impl
-handle_message(_Topic, Partition, Msg, SubscriberState) ->
-    gen_server:cast(?MODULE, {received, Msg, Partition}),
+handle_message(Topic, Partition, Msg, State) ->
+    gen_server:cast(?MODULE, {received, Msg, {Topic, Partition}}),
     %% TODO: Follows subscriber_callback/3, but what if we crash after ack?
-    {ok, ack, SubscriberState}.
+    {ok, ack, State}.
 
 
 handle_call(_Request, _From, State) ->
     {reply, ignored, State}.
 
 
-handle_cast({received, #kafka_message{key = _Key, value = Data}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = Data}, {Topic, _Part}},
             #{raw := true} = Opts) ->
-    Via = #via{claws = ?MODULE},
+    Via = #via{claws = ?MODULE, exchange = Topic},
     snatch:received(Data, Via),
     {noreply, Opts};
 
-handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = XML}, {_Topic, _Part}},
             #{trimmed := true} = Opts) ->
     case fxml_stream:parse_element(XML) of
         {error, _Error} ->
@@ -126,7 +149,7 @@ handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
     end,
     {noreply, Opts};
 
-handle_cast({received, #kafka_message{key = _Key, value = XML}, _Partition},
+handle_cast({received, #kafka_message{key = _Key, value = XML}, {_Topic, _Part}},
             Opts) ->
     case fxml_stream:parse_element(XML) of
         {error, _Error} ->
@@ -146,7 +169,10 @@ handle_cast({send, Data, JID, ID},
     IDBin = if is_binary(ID) -> ID; true -> <<"no-id">> end,
     Key = <<JIDBin/binary, ".", IDBin/binary>>,
     ok = brod:produce_sync(?KAFKA_CLIENT, OutTopic, Partition, Key, Data),
-    {noreply, Opts}.
+    {noreply, Opts};
+
+handle_cast(_Msg, State) -> 
+    {noreply, State}.
 
 
 handle_info(_Info, Opts) ->

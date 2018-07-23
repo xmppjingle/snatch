@@ -14,7 +14,7 @@
 -define(DEFAULT_VERBOSE, false).
 
 -define(DEFAULT_TIMES, 1).
--define(DEFAULT_STEP_TIMEOUT, 1000). % ms
+-define(DEFAULT_STEP_TIMEOUT, 5). % seconds
 
 -define(TEST_PROCESS, test_proc).
 -define(TIMEOUT_RECEIVE_ALL, 500). % ms
@@ -103,6 +103,8 @@ run_stop(#functional{}) ->
             true = unregister(?TEST_PROCESS)
         end}].
 
+run_step(#step{timeout = Timeout} = Step) when Timeout =/= undefined ->
+    [{timeout, Timeout, run_step(Step#step{timeout = undefined})}];
 run_step(#step{name = Name, actions = Actions}) ->
     [{Name, fun() ->
         lists:foldl(fun run_action/2, {[], [], #{}}, Actions)
@@ -167,28 +169,44 @@ run_action({check, {M, F}}, {ExpectedStanzas, ReceivedStanzas, Map}) ->
 process_xml_action(#xmlel{attrs = Attrs, children = Children} = El,
                    {ProcessedStanzas, Map}) ->
     ProcessedAttrs = lists:map(fun
-        ({AttrKey, <<"{{",_/binary>> = Value}) ->
-            RE = <<"^\\{\\{([^}]+)\\}\\}$">>,
+        ({AttrKey, Value}) ->
+            RE = <<"\\{\\{([^}]+)\\}\\}">>,
             Opts = [global, {capture, all, binary}],
             case re:run(Value, RE, Opts) of
-                {match, [[Value, Key]]} -> {AttrKey, maps:get(Key, Map)};
+                {match, Keys} ->
+                    lists:foldl(fun([_, Key], {_, AttrVal}) ->
+                        case maps:get(Key, Map, undefined) of
+                            undefined ->
+                                XMLStanza = fxml:element_to_binary(El),
+                                ?debugFmt("~n~n-----------~n"
+                                          "missing key: ~s~n"
+                                          "~nStanza => ~s~n"
+                                          "~nMap => ~p~n-----------~n",
+                                          [Key, XMLStanza, Map]),
+                                erlang:halt(1);
+                            Val ->
+                                RKey = <<"\\{\\{", Key/binary, "\\}\\}">>,
+                                NV = re:replace(AttrVal, RKey, Val, [global]),
+                                {AttrKey, iolist_to_binary(NV)}
+                        end
+                    end, {AttrKey, Value}, Keys);
                 nomatch -> {AttrKey, Value}
-            end;
-        (Attr) -> Attr
+            end
     end, Attrs),
     ProcessedChildren = lists:map(fun
         ({xmlcdata, CData}) ->
             RE = <<"\\{\\{([^}]+)\\}\\}">>,
-            Opts = [global],
+            Opts = [global, {capture, all, binary}],
             case re:run(CData, RE, Opts) of
-                {match, [[CData|Keys]]} ->
-                    lists:foldl(fun(Key, CD) ->
+                {match, Keys} ->
+                    {xmlcdata, lists:foldl(fun([_, Key], CD) ->
                         Val = maps:get(Key, Map),
                         ReplaceKey = <<"\\{\\{", Key/binary, "\\}\\}">>,
-                        iolist_to_binary(re:replace(CD, ReplaceKey, Val, Opts))
-                    end, CData, Keys);
+                        NCD = re:replace(CD, ReplaceKey, Val, [global]),
+                        iolist_to_binary(NCD)
+                    end, CData, Keys)};
                 nomatch ->
-                    CData
+                    {xmlcdata, CData}
             end;
         (#xmlel{} = Child) ->
             hd(element(1, process_xml_action(Child, {[], Map})))
@@ -227,8 +245,23 @@ check_stanzas([RecvStanza|ReceivedStanzas], ExpectedStanzas, Map) ->
     ExpectedStanza = lists:foldl(fun
         (ExpectedStanza, false) ->
             case check_stanza(RecvStanza, ExpectedStanza) of
-                true -> ExpectedStanza;
-                false -> false
+                true ->
+                    ExpectedStanza;
+                false ->
+                    false;
+                {error, {attr, Key, Val}} ->
+                    ?debugFmt("~n~n-----------~nCompound value not supported:~n~s~n"
+                              "Key => ~s~n"
+                              "Value => ~s~n"
+                              "~nMap => ~p~n-----------~n",
+                              [fxml:element_to_binary(ExpectedStanza), Key, Val, Map]),
+                    erlang:halt(1);
+                {error, {cdata, CData}} ->
+                    ?debugFmt("~n~n-----------~nCompound value not supported:~n~s~n"
+                              "CData => ~s~n"
+                              "~nMap => ~p~n-----------~n",
+                              [fxml:element_to_binary(ExpectedStanza), CData, Map]),
+                    erlang:halt(1)
             end;
         (_, ExpectedStanza) ->
             ExpectedStanza
@@ -263,15 +296,23 @@ check_stanza(#xmlel{name = Name} = El1, #xmlel{name = Name} = El2) ->
             Els = lists:zip(lists:sort(El1#xmlel.children),
                             lists:sort(El2#xmlel.children)),
             lists:all(fun({E1, E2}) -> check_stanza(E1, E2) end, Els);
-        _ ->
+        true ->
+            false;
+        {error, Error} ->
+            {error, Error};
+        false ->
             false
     end;
 check_stanza({xmlcdata, CData1}, {xmlcdata, <<"{{", _/binary>> = CData2}) ->
     RE = <<"^\\{\\{([^}]+)\\}\\}$">>,
     Opts = [global, {capture, all, binary}],
-    {match, [[CData2, Var]]} = re:run(CData2, RE, Opts),
-    self() ! {value, Var, CData1},
-    true;
+    case re:run(CData2, RE, Opts) of
+        {match, [[CData2, Var]]} ->
+            self() ! {value, Var, CData1},
+            true;
+        nomatch ->
+            {error, {cdata, CData2}}
+    end;
 check_stanza(_, _) ->
     false.
 
@@ -281,9 +322,13 @@ check_attrs([Attr|Attrs1], [Attr|Attrs2]) ->
 check_attrs([{Key, Val1}|Attrs1], [{Key, <<"{{",_/binary>> = Val2}|Attrs2]) ->
     RE = <<"^\\{\\{([^}]+)\\}\\}$">>,
     Opts = [global, {capture, all, binary}],
-    {match, [[Val2, Var]]} = re:run(Val2, RE, Opts),
-    self() ! {value, Var, Val1},
-    check_attrs(Attrs1, Attrs2);
+    case re:run(Val2, RE, Opts) of
+        {match, [[Val2, Var]]} ->
+            self() ! {value, Var, Val1},
+            check_attrs(Attrs1, Attrs2);
+        nomatch ->
+            {error, {attr, Key, Val2}}
+    end;
 check_attrs(_A1, _A2) ->
     false.
 
