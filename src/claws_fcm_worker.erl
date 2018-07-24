@@ -1,8 +1,6 @@
 -module(claws_fcm_worker).
 -behaviour(gen_statem).
-
-%% FIXME: missing send/2 and send/3 for behaviour
-%-behaviour(claws).
+%%-behaviour(claws).
 
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -13,7 +11,10 @@
   server_id,
   server_key,
   socket :: gen_tcp:socket(),
-  stream
+  pacer_entry,
+  stream,
+  report_to,
+  con_name
 }).
 
 -export([start_link/1, connect/0, disconnect/0]).
@@ -64,9 +65,11 @@ start_link(FCMParams) ->
   ssl:start(),
   gen_statem:start_link(?MODULE, [FCMParams], []).
 
-init([#{gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey}]) ->
+init([#{con_name := ConName, gcs_add := Gcs_add, gcs_port := Gcs_Port, server_id := ServerId, server_key := ServerKey} = Conf]) ->
   error_logger:info_msg("Starting FCM claw :~p", [#{gcs_add => Gcs_add, gcs_port => Gcs_Port, server_id => ServerId, server_key => ServerKey}]),
-  {ok, disconnected, #data{gcs_add = Gcs_add, gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}, [{next_event, cast, connect}]}.
+  ReportTo = maps:get(<<"report_to">>, Conf, undefined),
+  {ok, disconnected, #data{con_name = ConName, report_to = ReportTo, gcs_add = Gcs_add,
+    gcs_port = Gcs_Port, server_id = ServerId, server_key = ServerKey}, [{next_event, cast, connect}]}.
 
 callback_mode() -> handle_event_function.
 
@@ -82,13 +85,19 @@ disconnect() ->
 
 disconnected(Type, connect, #data{gcs_add  = Host, gcs_port = Port} = Data)
   when Type =:= cast orelse Type =:= state_timeout ->
-  case ssl:connect(Host, Port, [binary, {active, true}]) of
+  error_logger:info_msg("Connecting claw :~p",[self()]),
+  try ssl:connect(Host, Port, [binary, {active, true}]) of
     {ok, NewSocket} ->
+      error_logger:info_msg("socket claw connected :~p",[self()]),
       {next_state, connected, Data#data{socket = NewSocket},
         [{next_event, cast, init_stream}]};
     Error ->
       error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
         [Host, Port, Error]),
+      {next_state, retrying, Data, [{next_event, cast, connect}]}
+  catch
+    M:E ->
+      error_logger:error_msg("Connecting Error :~p",[{M,E}]),
       {next_state, retrying, Data, [{next_event, cast, connect}]}
   end;
 
@@ -99,11 +108,13 @@ retrying(cast, connect, Data) ->
   {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
 
 connected(cast, init_stream, #data{} = Data) ->
+  error_logger:info_msg("FCM connected :~p",[self()]),
   Stream = fxml_stream:new(self()),
   {next_state, stream_init, Data#data{stream = Stream},
     [{next_event, cast, init}]}.
 
 stream_init(cast, init, #data{socket = Socket} = Data) ->
+  error_logger:info_msg("initialising stream :~p",[self()]),
   ssl:send(Socket, ?INIT),
   {keep_state, Data, []};
 
@@ -118,11 +129,13 @@ wait_for_features(info, {ssl, _SSLSocket, _Message}, Data) ->
 authenticate(cast, auth_sasl, #data{server_id = User, server_key = Password,
   socket = Socket} = Data) ->
   B64 = base64:encode(<<0, User/binary, 0, Password/binary>>),
+  error_logger:info_msg("Sending claw auth FCM :~p",[?AUTH_SASL(B64)]),
 
   ssl:send(Socket, ?AUTH_SASL(B64)),
   {keep_state, Data, []};
 
 authenticate(info, {ssl, _SSLSocket, _Message}, Data) ->
+  error_logger:info_msg("FCM authenticate Received :~p",[_Message]),
   {next_state, bind, Data, [{next_event, cast, bind}]}.
 
 bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
@@ -133,25 +146,47 @@ bind(cast, bind, #data{socket = Socket, gcs_add = _Gcs_add,
   {keep_state, Data#data{stream = NewStream}, []};
 
 bind(info, {ssl, _SSLSock, _Message}, Data) ->
+  error_logger:info_msg("FCM bind Received :~p",[_Message]),
   {next_state, wait_for_binding, Data, []}.
 
 
 
 wait_for_binding(info, {ssl, _SSLSock, _Message}, #data{socket = Socket} = Data) ->
+  error_logger:info_msg("FCM wait_for_binding Received :~p",[_Message]),
   ssl:send(Socket, ?BIND),
   {next_state, wait_for_result, Data, []}.
 
 
 
 wait_for_result(info, {ssl, _SSLSock, _Message},  Data) ->
-  {next_state, binded, Data, []}.
+  error_logger:info_msg("FCM Connection ~p is ok",[self()]),
+  %% Pacer instanciation
+  QueueRef = make_ref(),
+  jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
+  snatch:connected(claws_fcm),
+  case Data#data.report_to of
+    Pid when is_pid(Pid) ->
+      Pid!{ready, Data#data.con_name, self()};
+    _ ->
+      ok
+  end,
+  {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 
 
 binding(info, {ssl, _SSLSock, _Message}, Data) ->
-  error_logger:info_msg("Claw ~p is connected",[self()]),
+  error_logger:info_msg("FCM Connection ~p is ok",[self()]),
+  %% Pacer instanciation
+  QueueRef = make_ref(),
+  jobs:add_queue(QueueRef,[{regulators, [{ rate, [{limit, 10000}]}]}]),
   snatch:connected(claws_fcm),
-  {next_state, binded, Data, []}.
+  case Data#data.report_to of
+    Pid when is_pid(Pid) ->
+      Pid!{ready, Data#data.con_name, self()};
+    _ ->
+      ok
+  end,
+  {next_state, binded, Data#data{pacer_entry = QueueRef}, []}.
 
 
 
@@ -162,7 +197,6 @@ binded(cast, {send, {list, To, Payload}}, #data{socket = Socket}) ->
     fun({Key,Value},Acc) -> maps:put(Key, Value,Acc) end,#{<<"message_id">> => base64:encode(crypto:strong_rand_bytes(6)), <<"to">> => To},Payload),
 
   send_push(jsone:encode(JSONPayload), Socket),
-  error_logger:info_msg("Encoded json :~p",[jsone:encode(JSONPayload)]),
   {keep_state_and_data, []};
 
 
@@ -173,16 +207,36 @@ binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
   error_logger:info_msg("Final map :~p",[FinalMap]),
 
   send_push(jsone:encode(FinalMap), Socket),
+
   {keep_state_and_data, []};
 
 
-binded(cast, {received, #xmlel{} = Packet}, _Data) ->
-  error_logger:info_msg("Puscomp received ~p",[Packet]),
-  From = snatch_xml:get_attr(<<"from">>, Packet),
-  To = snatch_xml:get_attr(<<"to">>, Packet),
-  Via = #via{jid = From, exchange = To, claws = ?MODULE},
-  snatch:received(Packet, Via),
-  {keep_state_and_data, []};
+%%binded(cast, {received, #xmlel{} = Packet}, _Data) ->
+%%  error_logger:info_msg("Puscomp received ~p",[Packet]),
+%%  From = snatch_xml:get_attr(<<"from">>, Packet),
+%%  To = snatch_xml:get_attr(<<"to">>, Packet),
+%%  Via = #via{jid = From, exchange = To, claws = ?MODULE},
+%%  snatch:received(Packet, Via),
+%%  {keep_state_and_data, []};
+
+
+binded(cast, {received, #xmlel{} = Message}, Data) ->
+  DecPak = fxml_stream:parse_element(Message),
+  error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
+  case DecPak#xmlel.name of
+    <<"message">> ->
+      case process_fcm_message(DecPak, Data) of
+        ok ->
+          {keep_state_and_data, []};
+        {next_state, State} ->
+          {next_state, State, Data, []};
+        _ ->
+          {keep_state_and_data, []}
+      end;
+    _ ->
+      snatch:received(DecPak),
+      {keep_state_and_data, []}
+  end;
 
 
 %% KEEP alive
@@ -246,7 +300,8 @@ handle_event(Type, Content, State, Data) ->
       error_logger:error_msg("Unknown Function: ~p~n", [State])
   end.
 
-terminate(_Reason, _StateName, _StateData) ->
+terminate(_Reason, _StateName, StateData) ->
+  jobs:delete_queue(StateData#data.pacer_entry),
   ok.
 
 code_change(_OldVsn, State, Data, _Extra) ->
@@ -265,5 +320,63 @@ send_push(Payload, Socket) ->
   Gcm = {xmlel, <<"gcm">>, [{<<"xmlns">>, <<"google:mobile:data">>}], [FinalPayload]},
   Mes = {xmlel, <<"message">>, [{<<"id">>, base64:encode(crypto:strong_rand_bytes(6))}], [Gcm]},
   error_logger:info_msg("Sending push :~p",[Mes]),
+
   ssl:send(Socket, fxml:element_to_binary(Mes)),
+  ok.
+
+
+%%send_paced_push(Payload, PacerEntry, Socket) ->
+%%  jobs:run(PacerEntry,fun()->
+%%                          send_push(Payload,Socket)
+%%                      end).
+
+
+-spec(process_fcm_message(Message :: xmlel(), Data :: tuple()) -> tuple()).
+process_fcm_message(Message, Data) ->
+  Message_type = proplists:get_value(<<"type">>, Message#xmlel.attrs),
+  case Message_type of
+    <<"error">> ->
+      error_logger:error_msg("FCM claw received error from FCM server :~p",[Message]),
+      ok;
+    _ ->
+      error_logger:info_msg("FCM claw received message from google FCM :~p",[{Message, Data}]),
+      process_message_payload(lists:nth(1,Message#xmlel.children))
+  end.
+
+-spec(process_message_payload(Data :: xmlel()) -> tuple()).
+process_message_payload(#xmlel{name = <<"data:gcm">>} = Data) ->
+  Cdata = fxml:get_tag_cdata(Data),
+  Payload = jsone:decode(Cdata),
+  process_json_payload(Payload);
+
+
+process_message_payload(El) ->
+  error_logger:error_msg("Received unmanaged payload from Google FCM : ~p",[El]),
+  ok.
+
+-spec(process_json_payload(Input :: map()) -> tuple()).
+process_json_payload(#{<<"message_type">> := <<"control">>, <<"control_type">> := <<"CONNECTION_DRAINING">>}) ->
+  error_logger:info_msg("FCm claw, connection drainned",[]),
+  %% TODO : fix next line, as pooler:remove_pid isn't exported and is killing the connection anyway. This makes
+  %% NACK and NACK won't be received, but as are not managing them right now, it is ok.to kill the claw
+  {stop, normal};
+
+process_json_payload(#{<<"message_type">> := <<"ack">>}) ->
+  error_logger:info_msg("ACk from FCM",[]),
+  ok;
+
+
+process_json_payload(#{<<"message_type">> := <<"nack">>, <<"error">> := ?DEVICE_MESSAGE_RATE_EXCEEDED, <<"from">> := From}) ->
+  error_logger:info_msg("NACK: FCM claw :~p exceeding FCM push rate limit for device :",[self(), From]),
+  {next_state, rate_exceeded};
+
+
+
+process_json_payload(#{<<"message_type">> := <<"nack">> } = Error) ->
+  error_logger:error_msg("NACk: ~p",[Error]),
+  ok;
+
+
+process_json_payload(Unk) ->
+  error_logger:error_msg("Claw FCM received unmanaged payload :~p",[Unk]),
   ok.
