@@ -94,10 +94,14 @@ disconnected(Type, connect, #data{host = Host, port = Port} = Data)
     end;
 
 disconnected(cast, disconnect, _Data) ->
-    {keep_state_and_data, []}.
+    {keep_state_and_data, []};
+disconnected(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 retrying(cast, connect, Data) ->
-    {next_state, disconnected, Data, [{state_timeout, 3000, connect}]}.
+    {next_state, disconnected, Data, [{state_timeout, 3000, connect}]};
+retrying(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 connected(cast, init_stream, #data{} = Data) ->
     Stream = fxml_stream:new(whereis(?SERVER)),
@@ -109,7 +113,10 @@ stream_init(cast, init, #data{domain = Domain, socket = Socket} = Data) ->
     {keep_state, Data, []};
 
 stream_init(cast, {received, _Packet}, Data) -> 
-    {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]}.
+    {next_state, authenticate, Data, [{next_event, cast, auth_sasl}]};
+
+stream_init(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 authenticate(cast, auth, #data{user = User, password = Password,
                                resource = Resource, socket = Socket} = Data) ->
@@ -123,7 +130,10 @@ authenticate(cast, auth_sasl, #data{user = User, password = Password,
     {keep_state, Data, []};
 
 authenticate(cast, {received, _Packet}, Data) ->
-    {next_state, bind, Data, [{next_event, cast, bind}]}.
+    {next_state, bind, Data, [{next_event, cast, bind}]};
+
+authenticate(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}. 
 
 bind(cast, bind, #data{resource = Resource, socket = Socket, domain = Domain,
                        stream = Stream} = Data) ->
@@ -136,11 +146,17 @@ bind(cast, bind, #data{resource = Resource, socket = Socket, domain = Domain,
 bind(cast, {received, _Packet}, #data{socket = Socket} = Data) ->
     gen_tcp:send(Socket, ?SESSION), 
     gen_tcp:send(Socket, ?PRESENCE),
-    {next_state, binding, Data, []}.
+    {next_state, binding, Data, []};
+
+bind(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 binding(cast, {received, _Packet}, Data) ->
     snatch:connected(?MODULE),
-    {next_state, binded, Data, []}.
+    {next_state, binded, Data, []};
+
+binding(_, {send, _, _, _}, Data) ->
+    {keep_state, Data, []}.
 
 binded(cast, {send, Packet}, #data{socket = Socket}) ->
     gen_tcp:send(Socket, Packet),
@@ -151,7 +167,7 @@ binded(cast, {received, #xmlel{} = Packet}, _Data) ->
     To = snatch_xml:get_attr(<<"to">>, Packet),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     snatch:received(Packet, Via),
-    {keep_state_and_data, []};
+    {keep_state_and_data, []}; 
 
 binded(cast, {received, Packet}, _Data) ->
     snatch:received(Packet),
