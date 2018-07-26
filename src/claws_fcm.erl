@@ -55,6 +55,8 @@
 %%
 
 -spec(send(Data :: tuple(), ConnectionName :: binary()) -> tuple()).
+send({list, To, Payload}, ConnectionName) ->
+  send({list, To, Payload, []}, direct, ConnectionName);
 send(Data, ConnectionName) ->
   send(Data, direct, ConnectionName).
 
