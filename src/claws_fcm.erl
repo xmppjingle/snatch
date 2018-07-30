@@ -25,7 +25,7 @@
   code_change/3,
   terminate/2]).
 
--export([new_connection/3, send/2, close_connections/1]).
+-export([new_connection/3, send/2, send/3, close_connections/1]).
 
 -define(SERVER, ?MODULE).
 
@@ -39,6 +39,42 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%% Data is :
+%% {list, To, Payload, Params}} : where To is the Token where the push will be sent and Payload is a key-value list matching
+%% json fields to send over FCM.
+%%
+%% Ex: [{<<"data">>, <<"Some data">>}, {<<"notification">>,#{<<"title">> => TitleVal, <<"body">> => BodyVal}}]
+%% The To parameter is added to the payload by the claw.
+%%
+%% Data can also be :
+%%
+%% {json_map, Payload}} : In this case, Payload is a map that will be converted to JSON before being sent to google FCM
+%% The token is supposed to be already stored inside the map under the key : "to".
+%%
+%%
+
+-spec(send(Data :: tuple(), ConnectionName :: binary()) -> tuple()).
+send({list, To, Payload}, ConnectionName) ->
+  send({list, To, Payload, []}, direct, ConnectionName);
+send(Data, ConnectionName) ->
+  send(Data, direct, ConnectionName).
+
+-spec(send(Data :: tuple(), Mode :: paced | direct, ConnectionName :: binary()) -> tuple()).
+send(Data, paced, ConnectionName) ->
+  jobs:run(
+    push_queue,
+    fun()->
+        P = pooler:take_member(push_pool),
+        gen_server:call(?SERVER, {send, Data, ConnectionName}),
+        pooler:return_member(push_pool, P, ok)
+    end);
+
+send(Data, direct, ConnectionName) ->
+  gen_server:call(?SERVER, {send, Data, ConnectionName}).
+
+close_connections(ConnectionName) ->
+  gen_server:call(?SERVER, {close_connection, ConnectionName}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -183,8 +219,6 @@ handle_call({new_connection, PoolSize, ConnectionName, FcmConfig}, _From, State)
   end;
 
 
-
-
 handle_call({send, Data, AppId}, _From, State) ->
   error_logger:info_msg("Fetching connection for appid :~p ",[{AppId, State#state.connections}]),
   try dict:fetch(AppId,State#state.connections) of
@@ -301,16 +335,6 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
-
-send(Data, ConnectionName) ->
-  gen_server:call(?SERVER, {send, Data, ConnectionName}).
-
-
-close_connections(ConnectionName) ->
-  gen_server:call(?SERVER, {close_connection, ConnectionName}).
-
-
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -350,28 +374,5 @@ new_connection(PoolSize, ConnectionName, FcmConfig) ->
 serverid_to_atom(ServerId) ->
   binary_to_atom(<<$c,ServerId/binary>>, utf8).
 
-%% Data is :
-%% {list, To, Payload}} : where To is the Token where the push will be sent and Payload is a key-value list matching
-%% json fields to send over FCM.
-%%
-%% Ex: [{<<"data">>, <<"Some data">>}, {<<"notification">>,#{<<"title">> => TitleVal, <<"body">> => BodyVal}}]
-%% The To parameter is added to the payload by the claw.
-%%
-%% Data can also be :
-%%
-%% {json_map, Payload}} : In this case, Payload is a map that will be converted to JSON before being sent to google FCM
-%% The token is supposed to be already stored inside the map under the key : "to".
-%%
-%%
-%%
 
 
-%%deprecated
-%%-spec(send(Data :: tuple()) -> tuple()).
-%%send(Data) ->
-%%  jobs:run(push_queue,fun()->
-%%                            P = pooler:take_member(push_pool),
-%%                            gen_statem:cast(P, {send, Data}),
-%%                            pooler:return_member(push_pool, P, ok)
-%%                         end).
-%%
