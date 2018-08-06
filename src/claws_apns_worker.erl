@@ -28,7 +28,7 @@ handle_call({push_token, Token, DeviceId, ApnsTopic, Notification}, _From, State
     #{connection_pid := ConnectionPid} = State,
     Headers = #{apns_topic => ApnsTopic},
     Response = apns:push_notification_token(ConnectionPid, Token, DeviceId, Notification, Headers),
-    error_logger:info_msg("Got APNS response for push[cert]: [~p] for request [~p]", [Response,
+    error_logger:info_msg("Got APNS response for push[token]: [~p] for request [~p]", [Response,
         #{token => Token, connection => ConnectionPid, device => DeviceId,
             notification => Notification, headers => Headers}]),
     {reply, Response, State};
