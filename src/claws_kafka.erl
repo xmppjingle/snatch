@@ -42,6 +42,7 @@ ack(#kafka_message{offset = Offset}, {Topic, Partition}) ->
 
 init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
+    timer:sleep(500), % Avoid intense restarts
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
     case maps:get(out_topics, Opts, undefined) of
         undefined ->
@@ -59,16 +60,20 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
 start_subscriber({InTopic, {group, GroupId}}, Opts) ->
     GroupConfig = maps:get(group_config, Opts, default_group_config()),
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
-    State = #{topic => InTopic, group => GroupId},
+    _GroupSubscriber = {GSModule, GSInitState0} = maps:get(group_subscriber, Opts,
+                                                           default_group_subscriber()),
+    MessageType = maps:get(message_type, Opts, default_message_type()),
+    GSInitState = maps:merge(#{group => GroupId}, GSInitState0),
     {ok, PID} = brod_group_subscriber:start_link(?KAFKA_CLIENT, GroupId, [InTopic],
                                                  GroupConfig, ConsumerConfig,
-                                                 _MessageType = message,
-                                                 _CallbackModule  = ?MODULE,
-                                                 _CallbackInitArg = State),
+                                                 MessageType,
+                                                 _CallbackModule  = GSModule,
+                                                 _CallbackInitArg = GSInitState),
     {brod_group_subscriber, PID};
 start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
     ConsumerConfig = maps:get(consumer_config, Opts, default_consumer_config()),
     AutoAckConfig = maps:get(auto_ack, Opts, true),
+    MessageType = maps:get(message_type, Opts, default_message_type()),
     CommitOffsets = [],
     State = #{topic => InTopic,
               partitions => InPartitions,
@@ -78,7 +83,7 @@ start_subscriber({InTopic, InPartitions}, Opts) when is_list(InPartitions) ->
                                                  InPartitions,
                                                  ConsumerConfig,
                                                  CommitOffsets,
-                                                 _MessageType = message,
+                                                 MessageType,
                                                  fun subscriber_callback/3,
                                                  State),
     {brod_topic_subscriber, PID}.
@@ -91,6 +96,12 @@ default_group_config() ->
 
 default_consumer_config() ->
     [{begin_offset, earliest}].
+
+default_message_type() ->
+    message.
+
+default_group_subscriber() ->
+    {?MODULE, #{}}.
 
 
 %% brod_topic_subscriber:cb_fun()
