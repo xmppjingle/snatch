@@ -44,12 +44,14 @@ init(#{endpoints := Endpoints, % [{"localhost", 9092}]
        in_topics := InTopics} = Opts) ->
     timer:sleep(500), % Avoid intense restarts
     ok = brod:start_client(Endpoints, ?KAFKA_CLIENT),
-    case maps:get(out_topic, Opts, undefined) of
+    case maps:get(out_topics, Opts, undefined) of
         undefined ->
             ok;
-        OutTopic ->
+        OutTopics ->
             ProdConfig = [],
-            ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
+            ok = lists:foreach(fun(OutTopic) ->
+                ok = brod:start_producer(?KAFKA_CLIENT, OutTopic, ProdConfig)
+            end, OutTopics)
     end,
     Subscribers = lists:map(fun (InTopic) -> start_subscriber(InTopic, Opts) end,
                             InTopics),
@@ -162,18 +164,29 @@ handle_cast({received, #kafka_message{key = _Key, value = XML}, {_Topic, _Part}}
     end,
     {noreply, Opts};
 
-handle_cast({send, Data, JID, ID},
-            #{out_topic := OutTopic} = Opts) ->
-    Partition = maps:get(out_partition, Opts, ?DEFAULT_PARTITION),
-    JIDBin = if is_binary(JID) -> JID; true -> <<"unknown">> end,
-    IDBin = if is_binary(ID) -> ID; true -> <<"no-id">> end,
-    Key = <<JIDBin/binary, ".", IDBin/binary>>,
-    ok = brod:produce_sync(?KAFKA_CLIENT, OutTopic, Partition, Key, Data),
+handle_cast({send, Data, From}, #{out_topics := [Topic|_]} = Opts) ->
+    Partition = partition(Topic, From, Opts),
+    ok = brod:produce_sync(?KAFKA_CLIENT, Topic, Partition, From, Data),
     {noreply, Opts};
 
-handle_cast(_Msg, State) -> 
-    {noreply, State}.
+handle_cast({send, Data, From, Topic}, Opts) ->
+    Partition = partition(Topic, From, Opts),
+    ok = brod:produce_sync(?KAFKA_CLIENT, Topic, Partition, From, Data),
+    {noreply, Opts}.
 
+kafka_partition(Opts) ->
+    maps:get(out_partition, Opts, undefined).
+
+partition(Topic, Key, Opts) ->
+    case kafka_partition(Opts) of
+        N when is_integer(N) ->
+            N;
+        _ ->
+            case brod:get_partitions_count(?KAFKA_CLIENT, Topic) of
+                {ok, 1} -> 0;
+                {ok, N} -> erlang:phash2(Key, N)
+            end
+    end.
 
 handle_info(_Info, Opts) ->
     io:format("info => ~p~n", [_Info]),
@@ -192,9 +205,9 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-send(Data, JID) ->
-    send(Data, JID, undefined).
+send(Data, From) ->
+    gen_server:cast(?MODULE, {send, Data, From}).
 
 
-send(Data, JID, ID) ->
-    gen_server:cast(?MODULE, {send, Data, JID, ID}).
+send(Data, From, Topic) ->
+    gen_server:cast(?MODULE, {send, Data, From, Topic}).
