@@ -61,7 +61,7 @@ send_test_() ->
         Params = #{
             endpoints => ?ENDPOINTS,
             in_topics => [{?TOPIC_OUT, [?PARTITION]}],
-            out_topic => ?TOPIC_IN,
+            out_topics => [?TOPIC_IN],
             out_partition => ?PARTITION,
             trimmed => false
         },
@@ -70,12 +70,12 @@ send_test_() ->
 
         ok = snatch:send(<<"<presence/>">>,
                          <<"irc.example.com">>,
-                         <<"001">>),
+                         ?TOPIC_IN),
         ok = snatch:send(<<"<presence/>">>, <<"irc.example.com">>),
-        ok = snatch:send(<<"<presence/>">>, undefined),
-        Key1 = <<"irc.example.com.001">>,
-        Key2 = <<"irc.example.com.no-id">>,
-        Key3 = <<"unknown.no-id">>,
+        ok = snatch:send(<<"<presence/>">>, <<>>),
+        Key1 = <<"irc.example.com">>,
+        Key2 = <<"irc.example.com">>,
+        Key3 = undefined,
         Value = <<"<presence/>">>,
         ?assertMatch([{received, #kafka_message{key = Key3, value = Value}, 0},
                       {received, #kafka_message{key = Key2, value = Value}, 0},
@@ -95,8 +95,7 @@ message_raw_test_() ->
         Params = #{
             endpoints => ?ENDPOINTS,
             in_topics => [{?TOPIC_OUT, [?PARTITION]}],
-            out_topic => ?TOPIC_IN,
-            out_partition => ?PARTITION,
+            out_topics => [?TOPIC_IN],
             raw => true
         },
         {ok, PID} = claws_kafka:start_link(Params),
@@ -120,8 +119,7 @@ message_test_() ->
         Params = #{
             endpoints => ?ENDPOINTS,
             in_topics => [{?TOPIC_OUT, [?PARTITION]}],
-            out_topic => ?TOPIC_IN,
-            out_partition => ?PARTITION,
+            out_topics => [?TOPIC_IN],
             trimmed => false
         },
         {ok, PID} = claws_kafka:start_link(Params),
@@ -147,7 +145,7 @@ message_trimmed_test_() ->
         Params = #{
             endpoints => ?ENDPOINTS,
             in_topics => [{?TOPIC_OUT, [?PARTITION]}],
-            out_topic => ?TOPIC_IN,
+            out_topics => [?TOPIC_IN],
             out_partition => ?PARTITION,
             trimmed => true
         },
