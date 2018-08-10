@@ -5,7 +5,7 @@
 -behaviour(claws).
 
 %% Application callbacks
--export([ start_link/1, send/2, send/3, push/3, push_token/4, push/4, push_token/5]).
+-export([ start_link/1, start_link/2, send/2, send/3, push/3, push_token/4, push/4, push_token/5]).
 
 %% Supervisor callbacks
 -export([ init/1]).
@@ -13,7 +13,10 @@
 -define(DEFAULT_TOPIC, <<"push">>).
 
 start_link(ApnsConfig) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, ApnsConfig).
+    start_link(ApnsConfig, ?MODULE).
+
+start_link(ApnsConfig, Name) ->
+    supervisor:start_link({local, Name}, ?MODULE, ApnsConfig).
 
 init(ApnsConfig) ->
     WPoolOptions  = [ {overrun_warning, infinity}
