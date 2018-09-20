@@ -92,7 +92,7 @@ disconnect() ->
 
 disconnected(Type, connect, #data{domain = Domain, host = Host, port = Port} = Data)
         when Type =:= cast orelse Type =:= state_timeout ->
-    case gen_tcp:connect(select_host(Domain, Host), Port, [binary, {active, true}]) of
+    case gen_tcp:connect(select_host(binary_to_list(Domain), Host), Port, [binary, {active, true}]) of
         {ok, NewSocket} ->
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};
