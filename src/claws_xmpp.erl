@@ -31,6 +31,7 @@
          binding/3,
          binded/3]).
 -export([send/2, send/3]).
+-export([select_host/2]).
 
 -define(INIT(D), <<"<?xml version='1.0' encoding='UTF-8'?>"
                    "<stream:stream to='", D/binary, "' xmlns='jabber:client' "
@@ -73,6 +74,14 @@ callback_mode() -> handle_event_function.
 
 %% API
 
+select_host(Name, Default) ->
+    case inet_res:getbyname("_xmpp-client._tcp." ++ Name, srv) of
+        {ok, {_, _, _, _, _, Addresses}} ->
+            Hosts = [X || {_, _, _, X} <- Addresses],
+            lists:nth(rand:uniform(length(Hosts)),Hosts);
+        _ -> Default
+    end.
+
 connect() -> 
     gen_statem:cast(?SERVER, connect).
 
@@ -81,9 +90,9 @@ disconnect() ->
 
 %% States
 
-disconnected(Type, connect, #data{host = Host, port = Port} = Data)
+disconnected(Type, connect, #data{domain = Domain, host = Host, port = Port} = Data)
         when Type =:= cast orelse Type =:= state_timeout ->
-    case gen_tcp:connect(Host, Port, [binary, {active, true}]) of
+    case gen_tcp:connect(select_host(Domain, Host), Port, [binary, {active, true}]) of
         {ok, NewSocket} ->
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};

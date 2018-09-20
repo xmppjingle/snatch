@@ -16,7 +16,7 @@ is_full(JID) when is_binary(JID) ->
 
 -spec to_bare(binary()) -> binary().
 %% @doc converts JID to a bare JID in binary format.
-to_bare_jid(Jid) ->
+to_bare(Jid) ->
   case re:split(Jid, "/") of
     [H, _] -> H;
     _else -> Jid
