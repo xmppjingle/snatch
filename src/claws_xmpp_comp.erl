@@ -14,6 +14,7 @@
     trimmed = false :: boolean(),
     adjust_attrs = false :: boolean(),
     ping = false :: false | pos_integer(),
+    throttle = false :: false | {atom(), atom(), pos_integer(), pos_integer},
     stream
 }).
 
@@ -31,7 +32,7 @@
          stream_init/3,
          authenticate/3,
          ready/3]).
--export([send/2, send/3]).
+-export([send/2, send/3, throtlle_accept/3]).
 
 -export([resolve_hosts/1, resolve_hosts/2, select_host/2]).
 
@@ -43,6 +44,12 @@
 -define(AUTH(P), <<"<handshake>", P/binary, "</handshake>">>).
 
 -define(SERVER, ?MODULE).
+
+-define(IF_TRUE_OR_ELSE(P, A, B),
+    case P of
+        true -> A;
+        _ -> B
+    end).
 
 -spec start_link(Name :: atom(), Params :: map()) -> {ok, pid()}.
 start_link(Name, Params) ->
@@ -67,13 +74,20 @@ init(#{host := Host,
     Trimmed = maps:get(trimmed, Cfg, false),
     AddFrom = maps:get(adjust_attrs, Cfg, false),
     Ping = maps:get(ping, Cfg, false),
+    Throttle = maps:get(throttle, Cfg, false),
+    case Throttle of
+        {Whitelist, _, _, _, _} -> 
+        mod_monitor:init(Whitelist);
+        _ -> ok
+    end,
     {ok, disconnected, #data{host = Host,
                              port = Port,
                              domain = Domain,
                              password = Password,
                              trimmed = Trimmed,
                              adjust_attrs = AddFrom,
-                             ping = Ping}}.
+                             ping = Ping,
+                             throttle = Throttle}}.
 
 -spec callback_mode() -> handle_event_function.
 %% @private
@@ -210,19 +224,19 @@ ready(cast, {send, Packet, _JID, _ID}, #data{socket = Socket} = Data) ->
     gen_tcp:send(Socket, Packet),
     {keep_state_and_data, timeout_action(Data)};
 
-ready(cast, {received, Packet}, #data{trimmed = true} = Data) ->
-    From = snatch_xml:get_attr(<<"from">>, Packet),
-    To = snatch_xml:get_attr(<<"to">>, Packet),
+ready(cast, {received, RawPacket}, #data{trimmed = Trimmed, throttle = Throttle} = Data) ->
+    From = snatch_xml:get_attr(<<"from">>, RawPacket),
+    To = snatch_xml:get_attr(<<"to">>, RawPacket),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
-    TrimmedPacket = snatch_xml:clean_spaces(Packet),
-    snatch:received(TrimmedPacket, Via),
-    {keep_state_and_data, timeout_action(Data)};
-
-ready(cast, {received, Packet}, #data{trimmed = false} = Data) ->
-    From = snatch_xml:get_attr(<<"from">>, Packet),
-    To = snatch_xml:get_attr(<<"to">>, Packet),
-    Via = #via{jid = From, exchange = To, claws = ?MODULE},
-    snatch:received(Packet, Via),
+    spawn(fun() -> 
+            case throtlle_accept(Throttle, RawPacket, Via) of            
+                true ->
+                    Packet = ?IF_TRUE_OR_ELSE(Trimmed, snatch_xml:clean_spaces(RawPacket), RawPacket),
+                    snatch:received(Packet, Via);
+                _ ->
+                    ok
+            end
+        end),
     {keep_state_and_data, timeout_action(Data)};
 
 ready(_, {send, _, _, _}, Data) ->
@@ -280,3 +294,14 @@ timeout_action(#data{ping = false}) ->
     [];
 timeout_action(#data{ping = Ping}) ->
     [{timeout, Ping, ping}].
+
+throtlle_accept({_WL, Mod, Fun, Max, Period}, Packet, Via) ->
+    case erlang:function_exported(Mod, Fun, 2) of
+        true ->
+            ID = Mod:Fun(Packet, Via),
+            mod_monitor:accept(ID, Max, Period);
+        _ ->
+            true
+    end;
+throtlle_accept(_, _, _) ->
+    true.
