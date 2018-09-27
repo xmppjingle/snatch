@@ -13,6 +13,8 @@
 
 -define(AUTH_ERR, <<"<stream>">>).
 
+-export([o/2]).
+
 listen() ->
     {ok, Socket} = gen_tcp:listen(0, [binary, {active, true}, {reuseaddr, true}]),
     {ok, Port} = inet:port(Socket),
@@ -40,7 +42,8 @@ connect(Trimmed, AdjustAttrs, Ping) ->
                password => <<"secret">>,
                trimmed => Trimmed,
                adjust_attrs => AdjustAttrs,
-               ping => Ping},
+               ping => Ping,
+               throttle => {[<<"news.example.com">>], claws_xmpp_comp_tests, o, 1000, 100}},
     {ok, _PID} = claws_xmpp_comp:start_link(Params),
     ok = claws_xmpp_comp:connect(),
     {ok, Socket} = accept(LSocket),
@@ -51,6 +54,8 @@ connect(Trimmed, AdjustAttrs, Ping) ->
     ok = gen_tcp:send(Socket, <<"<handshake/>">>),
     ok = timer:sleep(100),
     {ok, Apps, LSocket, Socket}.
+
+o(_, _) -> <<"A">>.
 
 clean() ->
     receive

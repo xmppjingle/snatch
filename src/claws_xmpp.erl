@@ -232,4 +232,4 @@ send(Data, _JID, _ID) ->
     gen_statem:cast(?MODULE, {send, Data}).
 
 close_stream(<<>>) -> ok;
-close_stream(Stream) -> fxml_stream:close(Stream).
+close_stream(Stream) -> catch fxml_stream:close(Stream).
