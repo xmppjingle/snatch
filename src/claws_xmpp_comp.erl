@@ -51,6 +51,13 @@
         _ -> B
     end).
 
+-define(CALL_IF_EXISTS(M, F, P),
+    case erlang:function_exported(M, F, length(P)) of
+        true ->
+            erlang:apply(M, F, P);
+        _ -> ok
+    end).
+
 -spec start_link(Name :: atom(), Params :: map()) -> {ok, pid()}.
 start_link(Name, Params) ->
     gen_statem:start_link({local, Name}, ?MODULE, Params, []).
@@ -76,8 +83,8 @@ init(#{host := Host,
     Ping = maps:get(ping, Cfg, false),
     Throttle = maps:get(throttle, Cfg, false),
     case Throttle of
-        {Whitelist, _, _, _, _} -> 
-        mod_monitor:init(Whitelist);
+        false -> ok;
+        Mod when is_atom(Mod) -> mod_monitor:init(Throttle:get_whitelist());
         _ -> ok
     end,
     {ok, disconnected, #data{host = Host,
@@ -229,11 +236,12 @@ ready(cast, {received, RawPacket}, #data{trimmed = Trimmed, throttle = Throttle}
     To = snatch_xml:get_attr(<<"to">>, RawPacket),
     Via = #via{jid = From, exchange = To, claws = ?MODULE},
     spawn(fun() -> 
-            case throtlle_accept(Throttle, RawPacket, Via) of            
+            case throtlle_accept(Throttle, RawPacket, Via) of       
                 true ->
                     Packet = ?IF_TRUE_OR_ELSE(Trimmed, snatch_xml:clean_spaces(RawPacket), RawPacket),
                     snatch:received(Packet, Via);
                 _ ->
+                    ?CALL_IF_EXISTS(Throttle, dropped, [RawPacket, Via]),
                     ok
             end
         end),
@@ -295,13 +303,10 @@ timeout_action(#data{ping = false}) ->
 timeout_action(#data{ping = Ping}) ->
     [{timeout, Ping, ping}].
 
-throtlle_accept({_WL, Mod, Fun, Max, Period}, Packet, Via) ->
-    case erlang:function_exported(Mod, Fun, 2) of
-        true ->
-            ID = Mod:Fun(Packet, Via),
+throtlle_accept(Mod, Packet, Via) ->
+    case ?CALL_IF_EXISTS(Mod, get_params, [Packet, Via]) of
+        {ID, Max, Period} ->
             mod_monitor:accept(ID, Max, Period);
         _ ->
             true
-    end;
-throtlle_accept(_, _, _) ->
-    true.
+    end.

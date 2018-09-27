@@ -1,6 +1,9 @@
 -module(claws_xmpp_comp_tests).
 -compile([warnings_as_errors, debug_info]).
 
+-bahaviour(snatch_throttle).
+-export([get_whitelist/0, get_params/2, dropped/2]).
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -43,7 +46,7 @@ connect(Trimmed, AdjustAttrs, Ping) ->
                trimmed => Trimmed,
                adjust_attrs => AdjustAttrs,
                ping => Ping,
-               throttle => {[<<"news.example.com">>], claws_xmpp_comp_tests, o, 1000, 100}},
+               throttle => ?MODULE},
     {ok, _PID} = claws_xmpp_comp:start_link(Params),
     ok = claws_xmpp_comp:connect(),
     {ok, Socket} = accept(LSocket),
@@ -209,3 +212,7 @@ error_connecting_test() ->
     ?assertMatch({disconnected, _}, sys:get_state(_PID)),
     ok = claws_xmpp_comp:disconnect(),
     ok.
+
+get_whitelist() -> [<<"news.example.com">>].
+get_params(_Packet, _Via) -> {<<"IA">>, 1000, 100}.
+dropped(_Packet, _Via) -> ok.
