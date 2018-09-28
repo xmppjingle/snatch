@@ -84,7 +84,7 @@ init(#{host := Host,
     Throttle = maps:get(throttle, Cfg, false),
     case Throttle of
         false -> ok;
-        Mod when is_atom(Mod) -> mod_monitor:init(Throttle:get_whitelist());
+        Mod when is_atom(Mod) -> mod_monitor:init(Throttle:get_whitelist(Cfg));
         _ -> ok
     end,
     {ok, disconnected, #data{host = Host,

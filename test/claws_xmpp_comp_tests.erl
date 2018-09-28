@@ -1,8 +1,8 @@
 -module(claws_xmpp_comp_tests).
 -compile([warnings_as_errors, debug_info]).
 
--bahaviour(snatch_throttle).
--export([get_whitelist/0, get_params/2, dropped/2]).
+-behaviour(snatch_throttle).
+-export([get_whitelist/1, get_params/2, dropped/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("fast_xml/include/fxml.hrl").
@@ -213,6 +213,6 @@ error_connecting_test() ->
     ok = claws_xmpp_comp:disconnect(),
     ok.
 
-get_whitelist() -> [<<"news.example.com">>].
+get_whitelist(_Cfg) -> [<<"news.example.com">>].
 get_params(_Packet, _Via) -> {<<"IA">>, 1000, 100}.
 dropped(_Packet, _Via) -> ok.
