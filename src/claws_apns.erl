@@ -5,7 +5,7 @@
 -behaviour(claws).
 
 %% Application callbacks
--export([ start_link/1, send/2, send/3, push/3, push_token/4]).
+-export([ start_link/1, start_link/2, send/2, send/3, push/3, push_token/4, push/4, push_token/5]).
 
 %% Supervisor callbacks
 -export([ init/1]).
@@ -13,7 +13,10 @@
 -define(DEFAULT_TOPIC, <<"push">>).
 
 start_link(ApnsConfig) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, ApnsConfig).
+    start_link(ApnsConfig, ?MODULE).
+
+start_link(ApnsConfig, Name) ->
+    supervisor:start_link({local, Name}, ?MODULE, ApnsConfig).
 
 init(ApnsConfig) ->
     WPoolOptions  = [ {overrun_warning, infinity}
@@ -28,7 +31,7 @@ init(ApnsConfig) ->
     },
 
     Children = [#{ id       => wpool
-        , start    => {wpool, start_pool, [claws_apns_pool, WPoolOptions]}
+        , start    => {wpool, start_pool, [maps:get(pool_name, ApnsConfig, claws_apns_pool), WPoolOptions]}
         , restart  => permanent
         , shutdown => 5000
         , type     => supervisor
@@ -38,10 +41,16 @@ init(ApnsConfig) ->
     {ok, {SupFlags, Children}}.
 
 push(Data, DeviceId, ApnsTopic) ->
-    wpool:call(claws_apns_pool, {push, DeviceId, ApnsTopic, Data}).
+    push(claws_apns_pool, Data, DeviceId, ApnsTopic).
 
 push_token(Token, Data, DeviceId, ApnsTopic) ->
-    wpool:call(claws_apns_pool, {push_token, Token, DeviceId, ApnsTopic, Data}).
+    push_token(claws_apns_pool, Token, Data, DeviceId, ApnsTopic).
+
+push(PoolName, Data, DeviceId, ApnsTopic) ->
+    wpool:call(PoolName, {push, DeviceId, ApnsTopic, Data}).
+
+push_token(PoolName, Token, Data, DeviceId, ApnsTopic) ->
+    wpool:call(PoolName, {push_token, Token, DeviceId, ApnsTopic, Data}).
 
 send(Data, DeviceId) ->
     push(Data, DeviceId, ?DEFAULT_TOPIC).
