@@ -225,7 +225,8 @@ binded(cast, {send, {json_map, Payload}}, #data{socket = Socket}) ->
 %%  {keep_state_and_data, []};
 
 
-binded(cast, {received, #xmlel{} = Message}, Data) ->
+binded(cast, {received, #xmlel{} = Message}, #data{server_id = ServerID} = Data) ->
+  snatch:received(Message, #via{jid = <<>>, exchange = ServerID, claws = claws_fcm}),
   DecPak = fxml_stream:parse_element(Message),
   error_logger:info_msg("puscomp received SSL ~p on socket ~p",[DecPak]),
   case DecPak#xmlel.name of
@@ -239,7 +240,6 @@ binded(cast, {received, #xmlel{} = Message}, Data) ->
           {keep_state_and_data, []}
       end;
     _ ->
-      snatch:received(DecPak),
       {keep_state_and_data, []}
   end;
 
