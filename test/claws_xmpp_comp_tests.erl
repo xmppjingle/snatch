@@ -1,6 +1,9 @@
 -module(claws_xmpp_comp_tests).
 -compile([warnings_as_errors, debug_info]).
 
+-behaviour(snatch_throttle).
+-export([get_whitelist/1, get_params/2, dropped/2]).
+
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("fast_xml/include/fxml.hrl").
 -include("snatch.hrl").
@@ -12,6 +15,8 @@
                 "id='3BF96D32'>">>).
 
 -define(AUTH_ERR, <<"<stream>">>).
+
+-export([o/2]).
 
 listen() ->
     {ok, Socket} = gen_tcp:listen(0, [binary, {active, true}, {reuseaddr, true}]),
@@ -40,7 +45,8 @@ connect(Trimmed, AdjustAttrs, Ping) ->
                password => <<"secret">>,
                trimmed => Trimmed,
                adjust_attrs => AdjustAttrs,
-               ping => Ping},
+               ping => Ping,
+               throttle => ?MODULE},
     {ok, _PID} = claws_xmpp_comp:start_link(Params),
     ok = claws_xmpp_comp:connect(),
     {ok, Socket} = accept(LSocket),
@@ -51,6 +57,8 @@ connect(Trimmed, AdjustAttrs, Ping) ->
     ok = gen_tcp:send(Socket, <<"<handshake/>">>),
     ok = timer:sleep(100),
     {ok, Apps, LSocket, Socket}.
+
+o(_, _) -> <<"A">>.
 
 clean() ->
     receive
@@ -204,3 +212,7 @@ error_connecting_test() ->
     ?assertMatch({disconnected, _}, sys:get_state(_PID)),
     ok = claws_xmpp_comp:disconnect(),
     ok.
+
+get_whitelist(_Cfg) -> [<<"news.example.com">>].
+get_params(_Packet, _Via) -> {<<"IA">>, 1000, 100}.
+dropped(_Packet, _Via) -> ok.
