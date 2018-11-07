@@ -17,3 +17,13 @@
   payload,
   ns
   }).
+
+-record(message, {
+  from,
+  to,
+  id,
+  type,
+  raw,
+  payload,
+  ns
+  }).
