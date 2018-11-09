@@ -46,7 +46,8 @@
     get_attr_deep/2,
     get_attr_deep/3,
     get_cdata/1,
-    get_name/1
+    get_name/1,
+    iso_date/0
 ]).
 
 is_whitespace({xmlcdata, CData}) ->
@@ -343,3 +344,7 @@ escape_using_entities2(<<C:8, Rest/binary>>, New_CData) ->
     escape_using_entities2(Rest, [New_C | New_CData]);
 escape_using_entities2(<<>>, New_CData) ->
     list_to_binary(lists:reverse(New_CData)).
+
+iso_date() ->
+  {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime({_,_,NS} = os:timestamp()),
+  lists:flatten(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~3..0bZ",[Year,Month,Day,Hour,Minute,Second,NS div 1000])).
