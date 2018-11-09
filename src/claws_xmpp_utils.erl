@@ -47,7 +47,8 @@
     get_attr_deep/3,
     get_cdata/1,
     get_name/1,
-    iso_date/0
+    iso_date/0,
+    iso_date/1
 ]).
 
 is_whitespace({xmlcdata, CData}) ->
