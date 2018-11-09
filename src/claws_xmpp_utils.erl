@@ -346,5 +346,7 @@ escape_using_entities2(<<>>, New_CData) ->
     list_to_binary(lists:reverse(New_CData)).
 
 iso_date() ->
-  {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime({_,_,NS} = os:timestamp()),
+  iso_date(os:timestamp()).
+iso_date(T) ->
+  {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_datetime({_,_,NS} = T),
   lists:flatten(io_lib:format("~4..0w-~2..0w-~2..0wT~2..0w:~2..0w:~2..0w.~3..0bZ",[Year,Month,Day,Hour,Minute,Second,NS div 1000])).
