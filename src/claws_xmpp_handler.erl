@@ -32,20 +32,20 @@ process_xml(#xmlel{name = Class, attrs = Attrs, children = Payload} = Stanza, _V
     case Class of
         ?IQ ->
             lists:dropwhile(fun(H) -> 
-            	H:process_iq(Type, #iq{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) /= false end,
+            	H:process_iq(Type, #iq{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) == true end,
             	Handlers);
         ?PRESENCE ->
             lists:dropwhile(fun(H) -> 
-            	H:process_presence(Type, #presence{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) /= false end,
+            	H:process_presence(Type, #presence{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) == true end,
             	Handlers);
         ?MESSAGE ->
         	lists:dropwhile(fun(H) -> 
-            	H:process_message(Type, #message{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) /= false end,
+            	H:process_message(Type, #message{from = From, to = To, id = ID, type = Type, ns = NS, payload = Payload, raw = Stanza}, State) == true end,
             Handlers);
         _ ->
             ok
     end;											
 process_xml(Packet, Via, State, Handlers) ->
 	lists:dropwhile(fun(H) -> 
-                H:process_unknown(Packet, Via, State) /= false end,
+                H:process_unknown(Packet, Via, State) == true end,
             Handlers).
