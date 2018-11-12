@@ -27,3 +27,7 @@
   payload,
   ns
   }).
+
+-define(IQ, <<"iq">>).
+-define(PRESENCE, <<"presence">>).
+-define(MESSAGE, <<"message">>).
