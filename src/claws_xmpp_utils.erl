@@ -18,6 +18,8 @@
     message/5,
     empty_presence/4,
     empty_presence/3,
+    empty_presence/2,	 
+    empty_presence/1,	 
     presence_subscribe/1,
     presence_subscribed/1,
     presence_available/3,
