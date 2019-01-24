@@ -285,6 +285,10 @@ empty_presence(Type, To) ->
     "type='", Type/binary, "' ",
     "to='", To/binary, "'/>">>.
 
+empty_presence(To) ->
+  <<"<presence ",
+    "to='", To/binary, "'/>">>.
+
 presence_available(From, To, ID) ->
   empty_presence(<<"available">>, From, To, ID).
 
