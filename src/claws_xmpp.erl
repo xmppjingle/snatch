@@ -104,6 +104,8 @@ disconnected(Type, connect, #data{domain = Domain, host = Host, port = Port} = D
 
 disconnected(cast, disconnect, _Data) ->
     {keep_state_and_data, []};
+disconnected(_, {send, _}, Data) ->
+    {keep_state, Data, []};
 disconnected(_, {send, _, _, _}, Data) ->
     {keep_state, Data, []}.
 
