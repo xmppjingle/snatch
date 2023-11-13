@@ -102,8 +102,7 @@ disconnected(Data) ->
 
 -spec init([term()]) -> {ok, #state{}} | {stop, Reason :: atom()}.
 %% @doc initialize the snatch process. It could be only one per node.
-init([Claws, Module, Args]) ->
-    via = ets:new(via, [named_table, {keypos, 2}]),
+init([Claws, Module, Args]) ->    
     case Module:init(Args) of
         {ok, State} ->
             {ok, #state{claws = Claws,
@@ -122,19 +121,8 @@ handle_cast({send, Data}, #state{claws = Claws} = S) ->
     Claws:send(Data, <<"unknown">>),
     {noreply, S};
 
-handle_cast({send, Data, JID}, #state{claws = Claws} = S) ->
-    Route = get_route(JID, Claws),
-    Route:send(Data, JID),
-    {noreply, S};
-
-handle_cast({send, Data, JID, ID}, #state{claws = Claws} = S) ->
-    Route = get_route(JID, Claws),
-    Route:send(Data, JID, ID),
-    {noreply, S};
-
-handle_cast({received, _Data, #via{} = Route} = Msg,
+handle_cast({received, _Data, #via{} = _Route} = Msg,
             #state{callback = Module} = State) ->
-    add_route(Route),
     forward(Module, Msg, State);
 
 handle_cast({received, _Data} = Msg, #state{callback = Module} = State) ->
@@ -157,28 +145,6 @@ terminate(Reason, #state{callback = Module, substate = SubState}) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-
--spec add_route(#via{} | undefined) -> ok.
-%% @doc add route to ets to send back stanzas.
-add_route(#via{jid = JID, claws = Claws}) when JID =/= undefined
-                                       andalso Claws =/= undefined ->
-    true = ets:insert(via, #via{jid = JID, claws = Claws});
-
-add_route(_) ->
-    ok.
-
-
--spec get_route(JID :: binary(), Default :: claws()) -> claws().
-%% @doc gets route stored in ets or the default if it's not found.
-get_route(JID, Default) ->
-    case ets:lookup(via, JID) of
-        [#via{claws = Claws}|_] ->
-            Claws;
-        [] ->
-            Default
-    end.
-
 
 -spec forward(module(), Data :: term(), State :: term()) ->
       {noreply, term()} | {stop, atom(), term()}.
