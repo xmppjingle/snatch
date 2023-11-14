@@ -6,19 +6,17 @@ Copyright (c) 2017 Thiago Camargo
 
 __Authors:__ "Thiago Camargo" ([`barata7@gmail.com`](mailto:barata7@gmail.com)).
 
-[![Build Status](https://img.shields.io/travis/manuel-rubio/snatch/master.svg)](https://travis-ci.org/manuel-rubio/snatch)
-[![Codecov](https://img.shields.io/codecov/c/github/manuel-rubio/snatch.svg)](https://codecov.io/gh/manuel-rubio/snatch)
 [![License: Apache 2.0](https://img.shields.io/github/license/xmppjingle/snatch.svg)](https://raw.githubusercontent.com/xmppjingle/snatch/master/LICENSE)
 
 Lightweight XMPP Client Library for Erlang. This library is intended to handle client connections in an agnostic way. The system is launched using the snatch process and configuring as many claws as you need.
 
 The built-in claws are:
 
-- [XMPP Client](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_xmpp.md)
-- [XMPP Component](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_xmpp_comp.md)
-- [XMPP over HTTP Long-polling](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_lp.md)
-- [XMPP over AMQP](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_rabbitmq.md)
-- [XMPP over Kafka](http://github.com/manuel-rubio/snatch/blob/master/doc/how-to/claws_kafka.md)
+- [XMPP Client](doc/how-to/claws_xmpp.md)
+- [XMPP Component](doc/how-to/claws_xmpp_comp.md)
+- [XMPP over HTTP Long-polling](doc/how-to/claws_lp.md)
+- [XMPP over AMQP](doc/how-to/claws_rabbitmq.md)
+- [XMPP over Kafka](doc/how-to/claws_kafka.md)
 
 Installation
 ------------
@@ -29,7 +27,7 @@ In the same way we prefer to use [rebar3](http://www.rebar3.org) instead of olde
 
 ```erlang
 {deps, [
-    {snatch, {git, "https://github.com/manuel-rubio/snatch.git", {branch, master}}}
+    {snatch, {git, "https://github.com/xmppjingle/snatch.git", {branch, master}}}
 ]}
 ```
 
@@ -37,7 +35,7 @@ Or if you are using [erlang.mk](https://erlang.mk) instead, you can use:
 
 ```Makefile
 DEPS += snatch
-dep_snatch = git https://github.com/manuel-rubio/snatch.git master
+dep_snatch = git https://github.com/xmppjingle/snatch.git master
 ```
 
 The used dependencies are:
@@ -148,33 +146,30 @@ snatch:send(<<"<presence/>">>).
 Testing
 -------
 
-There are a framework to test XMPP easily. For further information: [testing framework](http://github.com/manuel-rubio/snatch/blob/master/doc/testing.md).
+There are a framework to test XMPP easily. For further information: [testing framework](doc/testing.md).
 
 Troubleshooting
 ---------------
 
-Feel free to create an issue in github to point a bug, flaw or improvement and even send a pull request with a specific change. Read the [LICENSE](http://github.com/manuel-rubio/snatch/blob/master/doc/LICENSE) if you have doubts about what you can do with the code.
+Feel free to create an issue in github to point a bug, flaw or improvement and even send a pull request with a specific change. Read the [LICENSE](doc/LICENSE) if you have doubts about what you can do with the code.
 
 Enjoy!
 
 
 ## Modules ##
 
-
-<table width="100%" border="0" summary="list of modules">
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws.md" class="module">claws</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_fcm.md" class="module">claws_fcm</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_fcm_worker.md" class="module">claws_fcm_worker</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_kafka.md" class="module">claws_kafka</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_lp.md" class="module">claws_lp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_rabbitmq.md" class="module">claws_rabbitmq</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_rest.md" class="module">claws_rest</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp.md" class="module">claws_xmpp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/claws_xmpp_comp.md" class="module">claws_xmpp_comp</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch.md" class="module">snatch</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_fun_test.md" class="module">snatch_fun_test</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_jid.md" class="module">snatch_jid</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_router.md" class="module">snatch_router</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_stanza.md" class="module">snatch_stanza</a></td></tr>
-<tr><td><a href="http://github.com/manuel-rubio/snatch/blob/master/doc/snatch_xml.md" class="module">snatch_xml</a></td></tr></table>
-
+| Modules                                        |
+|------------------------------------------------|
+| [`claws`](doc/claws.md)                        |
+| [`claws_fcm`](docs/claws_fcm.md)               |
+| [`claws_fcm_worker`](docs/claws_fcm_worker.md) |
+| [`claws_kafka`](docs/claws_kafka.md)           |
+| [`claws_lp`](docs/claws_lp.md)                 |
+| [`claws_rabbitmq`](docs/claws_rabbitmq.md)     |
+| [`claws_rest`](docs/claws_rest.md)             |
+| [`snatch`](docs/snatch.md)                     |
+| [`snatch_fun_test`](docs/snatch_fun_test.md)   |
+| [`snatch_jid`](docs/snatch_jid.md)             |
+| [`snatch_router`](docs/snatch_router.md)       |
+| [`snatch_stanza`](docs/snatch_stanza.md)       |
+| [`snatch_xml`](docs/snatch_xml.md)             |
