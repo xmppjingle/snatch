@@ -6,15 +6,10 @@
 -include("snatch.hrl").
 
 -record(state, {
-    sns_module :: atom(), %% TODO possibly do module type/callback trick to give better warnings for Dialyzer
-    topic_arn :: string()
+    sns_module :: atom(),
+    topic_arn :: string(),
+    aws_config = erlcloud_aws:aws_config()
 }).
-
--type claws_aws_sns_options() :: #{
-    access_key_id => string(),
-    secret_access_key => string(),
-    region => string()
-}.
 
 %% API
 -export([start_link/1]).
@@ -31,56 +26,75 @@
 -export([send/2,
          send/3]).
 
--spec start_link(claws_aws_sns_options() | binary()) -> {ok, pid()}.
+-spec start_link(map() | binary()) -> {ok, pid()}.
 start_link(Options) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
 %% Callbacks
 init(Options) when is_map(Options) ->
-    AccessKeyId = maps:get(access_key_id, Options, os:getenv("AWS_ACCESS_KEY_ID")),
-    SecretAccessKey = maps:get(secret_access_key, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
-    Region = maps:get(region, Options, os:getenv("AWS_DEFAULT_REGION")),
     TopicArn = maps:get(topic_arn, Options),
     SnsModule = maps:get(sns_module, Options, erlcloud_sns),
+    AccessKeyId = maps:get(access_key_id, Options, os:getenv("AWS_ACCESS_KEY_ID")),
+    SecretAccessKey = maps:get(secret_access_key, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
+    SnsPort = maps:get(sns_port, Options, undefined),
+    SnsScheme = maps:get(sns_scheme, Options, undefined),
 
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, Region, TopicArn]),
+    BaseConfig = case maps:get(sns_host, Options, undefined) of
+        undefined ->
+            SnsModule:new(AccessKeyId, SecretAccessKey);
+        Host ->
+            SnsModule:new(AccessKeyId, SecretAccessKey, Host)
+    end,
+
+    Config =
+        case {SnsPort, SnsScheme} of
+            {undefined, undefined} -> BaseConfig;
+            {Port, undefined} -> BaseConfig#{sns_port => Port};
+            {undefined, Scheme} -> BaseConfig#{sns_scheme => Scheme};
+            {Port, Scheme} -> BaseConfig#{sns_port => Port, sns_scheme => Scheme}
+        end,
+
+    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
 
     if
         MissingEnv ->
-            {stop, aws_configuration_not_found};
+            case erlcloud_aws:profile() of
+                {ok, Config} ->
+                    {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}};
+                {error, _Reason} ->
+                    {stop, aws_configuration_not_found}
+            end;
         true ->
-            SnsModule:new(AccessKeyId, SecretAccessKey),
-            {ok, #state{topic_arn = TopicArn, sns_module = SnsModule}}
+            {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}}
     end;
 
 init(TopicArn) when is_binary(TopicArn) ->
     AccessKeyId = os:getenv("AWS_ACCESS_KEY_ID"),
     SecretAccessKey = os:getenv("AWS_SECRET_ACCESS_KEY"),
-    Region = os:getenv("AWS_DEFAULT_REGION"),
+    Config = erlcloud_sns:new(AccessKeyId, SecretAccessKey),
 
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, Region]),
+    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
 
     if
         MissingEnv ->
             {stop, aws_configuration_not_found};
         true ->
-            erlcloud_sns:new(AccessKeyId, SecretAccessKey),
-            {ok, #state{topic_arn = TopicArn, sns_module = erlcloud_sns}}
+            {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = erlcloud_sns}}
     end.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({send, JID, Data}, #state{topic_arn = TopicArn, sns_module = SnsModule} = State) ->
-    case SnsModule:publish_to_topic(TopicArn, Data, JID) of
+handle_cast({send, JID, Data}, #state{aws_config = AwsConfig, sns_module = SnsModule, topic_arn = TopicArn} = State) ->
+    case SnsModule:publish_to_topic(TopicArn, Data, JID, AwsConfig) of
         {ok, _MessageId} ->
             {noreply, State};
         {error, Reason} ->
             {error, Reason}
     end;
 
-handle_cast({send, JID, Data, ID}, #state{sns_module = SnsModule} = State) ->
-    case SnsModule:publish_to_topic(ID, Data, JID) of
+handle_cast({send, JID, Data, _ID}, #state{aws_config = AwsConfig, sns_module = SnsModule, topic_arn = TopicArn} = State) ->
+    case SnsModule:publish_to_topic(TopicArn, Data, JID, AwsConfig) of
         {ok, _MessageId} ->
             {noreply, State};
         {error, Reason} ->

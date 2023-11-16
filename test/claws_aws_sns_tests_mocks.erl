@@ -4,7 +4,8 @@
 -export([
     init/0,
     new/2,
-    publish_to_topic/3,
+    new/3,
+    publish_to_topic/4,
     send_message/2,
     send_message/3,
     stop/0,
@@ -17,10 +18,11 @@ init() ->
     ets:new(?TABLE, [set, named_table, public]),
     ok.
 
-new(_AccessKeyId, _SecretKeyId) ->
-    {}.
+new(_AccessKeyId, _SecretKeyId) -> {}.
 
-publish_to_topic(_TopicArn, _Data, JID) ->
+new(_AccessKeyId, _SecretKeyId, _Host) -> {}.
+
+publish_to_topic(_TopicArn, _Data, JID, _Config) ->
     {ok, JID}.
 
 send_message(Data, JID) ->

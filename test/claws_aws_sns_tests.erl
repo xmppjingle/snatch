@@ -6,8 +6,7 @@
 -define(OPTIONS, #{
         access_key_id => "dummy_access_id",
         secret_access_key => "dummy_secret_key",
-        region => "dummy_region",
-        topic_arn => "test_topic",
+        topic_arn => "arn:testtopic.aws.com",
         sns_module => claws_aws_sns_tests_mocks
     }).
 
