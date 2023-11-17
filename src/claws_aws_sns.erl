@@ -41,9 +41,9 @@ init(Options) when is_map(Options) ->
 
     BaseConfig = case maps:get(sns_host, Options, undefined) of
         undefined ->
-            SnsModule:new(AccessKeyId, SecretAccessKey);
+            SnsModule:configure(AccessKeyId, SecretAccessKey);
         Host ->
-            SnsModule:new(AccessKeyId, SecretAccessKey, Host)
+            SnsModule:configure(AccessKeyId, SecretAccessKey, Host)
     end,
 
     Config =

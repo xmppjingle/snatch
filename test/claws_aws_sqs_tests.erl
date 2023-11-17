@@ -23,8 +23,6 @@ claws_aws_sqs_send_message_test_() ->
     }.
 
 setup() ->
-    rand:seed(exsplus),
-    rand:uniform(),
     ok = claws_aws_sqs_tests_mocks:init(),
     {ok, _} = application:ensure_all_started(snatch),
     {ok, Pid} = claws_aws_sqs:start_link(?OPTIONS),
