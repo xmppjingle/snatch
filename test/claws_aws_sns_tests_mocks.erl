@@ -2,8 +2,8 @@
 
 
 -export([
-    configure/2,
-    configure/3,
+    new/2,
+    new/3,
     init/0,
     publish_to_topic/4,
     send_message/2,
@@ -18,9 +18,9 @@ init() ->
     ets:new(?TABLE, [set, named_table, public]),
     ok.
 
-configure(_AccessKeyId, _SecretKeyId) -> {}.
+new(_AccessKeyId, _SecretKeyId) -> {}.
 
-configure(_AccessKeyId, _SecretKeyId, _Host) -> {}.
+new(_AccessKeyId, _SecretKeyId, _Host) -> {}.
 
 publish_to_topic(_TopicArn, _Data, JID, _Config) ->
     {ok, JID}.

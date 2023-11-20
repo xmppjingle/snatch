@@ -23,7 +23,7 @@ claws_aws_sqs_send_message_test_() ->
     }.
 
 setup() ->
-    ok = claws_aws_sqs_tests_mocks:init(),
+    ok = claws_aws_sqs_tests_mocks:init([]),
     {ok, _} = application:ensure_all_started(snatch),
     {ok, Pid} = claws_aws_sqs:start_link(?OPTIONS),
     Pid.
@@ -33,7 +33,6 @@ stop(Pid) ->
     gen_server:stop(Pid),
     application:stop(snatch).
 
-% Tests
 test_static_send_receive() ->
     QueueName = <<"test-queue">>,
     Message = <<"<test-message/>">>,
@@ -44,11 +43,10 @@ test_static_send_receive() ->
         ?_assert(lists:member(Message, Results))
     ].
 
-%% TODO
 test_snatch() ->
     Contents = <<"<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>">>,
     {ok, _} = snatch:start_link(claws_aws_sqs, self()),
-    ok = snatch:send(Contents, <<"TestQueue">>),
+    ok = snatch:send(Contents),
     ok = snatch:received(Contents),
     snatch:stop(),
     [

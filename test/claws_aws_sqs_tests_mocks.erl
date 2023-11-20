@@ -1,7 +1,7 @@
 -module(claws_aws_sqs_tests_mocks).
 
 -export([
-    init/0,
+    init/1,
     new/2,
     receive_message/2,
     send_message/3,
@@ -12,7 +12,7 @@
 
 -define(TABLE, claws_aws_sqs_tests_mocks_table).
 
-init() ->
+init([]) ->
     ets:new(?TABLE, [set, named_table, public]),
     ok.
 

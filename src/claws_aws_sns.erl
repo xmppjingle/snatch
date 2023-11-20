@@ -4,12 +4,20 @@
 -behaviour(claws).
 
 -include("snatch.hrl").
+-include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -record(state, {
     sns_module :: atom(),
     topic_arn :: string(),
     aws_config = erlcloud_aws:aws_config()
 }).
+
+
+-type claws_aws_sns_options() :: #{
+    access_key_id => string(),
+    secret_access_key => string(),
+    topic_arn => string()
+}.
 
 %% API
 -export([start_link/1]).
@@ -26,7 +34,7 @@
 -export([send/2,
          send/3]).
 
--spec start_link(map() | binary()) -> {ok, pid()}.
+-spec start_link(claws_aws_sns_options() | binary()) -> {ok, pid()}.
 start_link(Options) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
 
@@ -39,32 +47,24 @@ init(Options) when is_map(Options) ->
     SnsPort = maps:get(sns_port, Options, undefined),
     SnsScheme = maps:get(sns_scheme, Options, undefined),
 
-    BaseConfig = case maps:get(sns_host, Options, undefined) of
-        undefined ->
-            SnsModule:configure(AccessKeyId, SecretAccessKey);
-        Host ->
-            SnsModule:configure(AccessKeyId, SecretAccessKey, Host)
-    end,
+    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, TopicArn]),
 
-    Config =
-        case {SnsPort, SnsScheme} of
-            {undefined, undefined} -> BaseConfig;
-            {Port, undefined} -> BaseConfig#{sns_port => Port};
-            {undefined, Scheme} -> BaseConfig#{sns_scheme => Scheme};
-            {Port, Scheme} -> BaseConfig#{sns_port => Port, sns_scheme => Scheme}
-        end,
-
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
-
-    if
-        MissingEnv ->
-            case erlcloud_aws:profile() of
-                {ok, Config} ->
-                    {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}};
-                {error, _Reason} ->
-                    {stop, aws_configuration_not_found}
-            end;
+    if MissingEnv ->
+        case erlcloud_aws:profile() of
+            {ok, BaseConfig} ->
+                Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
+                {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}};
+            {error, _Reason} ->
+                {stop, aws_configuration_not_found}
+        end;
         true ->
+            BaseConfig = case maps:get(sns_host, Options, undefined) of
+                undefined ->
+                    SnsModule:new(AccessKeyId, SecretAccessKey);
+                Host ->
+                    SnsModule:new(AccessKeyId, SecretAccessKey, Host)
+            end,
+            Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
             {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}}
     end;
 
@@ -119,3 +119,11 @@ send(Data, JID) ->
 send(Data, JID, ID) ->
     gen_server:cast(?MODULE, {send, JID, Data, ID}).
 
+%% Util
+enrich_aws_config(SnsPort, SnsScheme, BaseConfig) ->
+    case {SnsPort, SnsScheme} of
+        {undefined, undefined} -> BaseConfig;
+        {Port, undefined} -> BaseConfig#aws_config{sns_port = Port};
+        {undefined, Scheme} -> BaseConfig#aws_config{sns_scheme = Scheme};
+        {Port, Scheme} -> BaseConfig#aws_config{sns_port = Port, sns_scheme = Scheme}
+    end.
