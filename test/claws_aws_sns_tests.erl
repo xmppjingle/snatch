@@ -6,7 +6,6 @@
 -define(OPTIONS, #{
         access_key_id => "dummy_access_id",
         secret_access_key => "dummy_secret_key",
-        topic_arn => "arn:testtopic",
         sns_module => claws_aws_sns_tests_mocks
     }).
 
@@ -32,9 +31,10 @@ stop(Pid) ->
 
 % Tests
 test_static_send() ->
+    TopicArn = <<"arn:test-topic">>,
     JID = <<"user@domain.com/home">>,
     Data = <<"<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>">>,
-    claws_aws_sns:send(Data, JID),
+    claws_aws_sns:send(Data, TopicArn, JID),
     [
         ?_assert(claws_aws_sns_tests_mocks:was_message_sent(JID, Data))
     ].

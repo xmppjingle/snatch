@@ -8,15 +8,13 @@
 
 -record(state, {
     sns_module :: atom(),
-    topic_arn :: string(),
     aws_config = erlcloud_aws:aws_config()
 }).
 
 
 -type claws_aws_sns_options() :: #{
     access_key_id => string(),
-    secret_access_key => string(),
-    topic_arn => string()
+    secret_access_key => string()
 }.
 
 %% API
@@ -40,20 +38,19 @@ start_link(Options) ->
 
 %% Callbacks
 init(Options) when is_map(Options) ->
-    TopicArn = maps:get(topic_arn, Options),
     SnsModule = maps:get(sns_module, Options, erlcloud_sns),
     AccessKeyId = maps:get(access_key_id, Options, os:getenv("AWS_ACCESS_KEY_ID")),
     SecretAccessKey = maps:get(secret_access_key, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
     SnsPort = maps:get(sns_port, Options, undefined),
     SnsScheme = maps:get(sns_scheme, Options, undefined),
 
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, TopicArn]),
+    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
 
     if MissingEnv ->
         case erlcloud_aws:profile() of
             {ok, BaseConfig} ->
                 Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
-                {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}};
+                {ok, #state{aws_config = Config, sns_module = SnsModule}};
             {error, _Reason} ->
                 {stop, aws_configuration_not_found}
         end;
@@ -65,10 +62,10 @@ init(Options) when is_map(Options) ->
                     SnsModule:new(AccessKeyId, SecretAccessKey, Host)
             end,
             Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
-            {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = SnsModule}}
+            {ok, #state{aws_config = Config, sns_module = SnsModule}}
     end;
 
-init(TopicArn) when is_binary(TopicArn) ->
+init([]) ->
     AccessKeyId = os:getenv("AWS_ACCESS_KEY_ID"),
     SecretAccessKey = os:getenv("AWS_SECRET_ACCESS_KEY"),
     Config = erlcloud_sns:new(AccessKeyId, SecretAccessKey),
@@ -79,22 +76,22 @@ init(TopicArn) when is_binary(TopicArn) ->
         MissingEnv ->
             {stop, aws_configuration_not_found};
         true ->
-            {ok, #state{aws_config = Config, topic_arn = TopicArn, sns_module = erlcloud_sns}}
+            {ok, #state{aws_config = Config,sns_module = erlcloud_sns}}
     end.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
-handle_cast({send, JID, Data}, #state{aws_config = AwsConfig, sns_module = SnsModule, topic_arn = TopicArn} = State) ->
-    case SnsModule:publish_to_topic(TopicArn, Data, JID, AwsConfig) of
+handle_cast({send, TopicArn, Message}, #state{aws_config = AwsConfig, sns_module = SnsModule} = State) ->
+    case SnsModule:publish_to_topic(TopicArn, Message, AwsConfig) of
         {ok, _MessageId} ->
             {noreply, State};
         {error, Reason} ->
             {error, Reason}
     end;
 
-handle_cast({send, JID, Data, _ID}, #state{aws_config = AwsConfig, sns_module = SnsModule, topic_arn = TopicArn} = State) ->
-    case SnsModule:publish_to_topic(TopicArn, Data, JID, AwsConfig) of
+handle_cast({send, TopicArn, Message, Subject}, #state{aws_config = AwsConfig, sns_module = SnsModule} = State) ->
+    case SnsModule:publish_to_topic(TopicArn, Message, Subject, AwsConfig) of
         {ok, _MessageId} ->
             {noreply, State};
         {error, Reason} ->
