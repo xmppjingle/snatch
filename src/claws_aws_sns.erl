@@ -28,7 +28,7 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    {ok, AwsConfig} = ercloud_aws:auto_config(),
+    {ok, AwsConfig} = erlcloud_aws:auto_config(),
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
 
 -spec start_link(aws_config()) -> {ok, pid()}.
@@ -40,30 +40,22 @@ start_link(AwsConfig, SnsModule) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SnsModule}, []).
 
 %% Callbacks
-init({AwsConfig, SnsModule}) ->
-    {ok, #state{aws_config = AwsConfig, sns_module = SnsModule}};
-
 init({AwsConfig}) ->
-    {ok, #state{aws_config = AwsConfig, sns_module = erlcloud_sns}}.
+    init({AwsConfig, erlcloud_sns});
+
+init({AwsConfig, SnsModule}) ->
+    {ok, #state{aws_config = AwsConfig, sns_module = SnsModule}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast({send, TopicArn, Message}, #state{aws_config = AwsConfig, sns_module = SnsModule} = State) ->
-    case SnsModule:publish_to_topic(TopicArn, Message, AwsConfig) of
-        {ok, _MessageId} ->
-            {noreply, State};
-        {error, Reason} ->
-            {error, Reason}
-    end;
+    SnsModule:publish_to_topic(TopicArn, Message, undefined, AwsConfig),
+    {noreply, State};
 
 handle_cast({send, TopicArn, Message, Subject}, #state{aws_config = AwsConfig, sns_module = SnsModule} = State) ->
-    case SnsModule:publish_to_topic(TopicArn, Message, Subject, AwsConfig) of
-        {ok, _MessageId} ->
-            {noreply, State};
-        {error, Reason} ->
-            {error, Reason}
-    end;
+    SnsModule:publish_to_topic(topic, TopicArn, Message, Subject, AwsConfig),
+    {noreply, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

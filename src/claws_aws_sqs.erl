@@ -34,7 +34,7 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    {ok, AwsConfig} = ercloud_aws:auto_config(),
+    {ok, AwsConfig} = erlcloud_aws:auto_config(),
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
 
 -spec start_link(aws_config()) -> {ok, pid()}.
@@ -46,11 +46,11 @@ start_link(AwsConfig, SqsModule) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SqsModule}, []).
 
 %% Callbacks
-init({AwsConfig, SqsModule}) ->
-    {ok, #state{aws_config = AwsConfig, sqs_module = SqsModule}};
-
 init({AwsConfig})  ->
-    {ok, #state{aws_config = AwsConfig, sqs_module = erlcloud_sqs}}.
+    init({AwsConfig, erlcloud_sqs});
+
+init({AwsConfig, SqsModule}) ->
+    {ok, #state{aws_config = AwsConfig, sqs_module = SqsModule}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
