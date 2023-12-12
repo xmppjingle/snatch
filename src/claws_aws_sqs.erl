@@ -15,7 +15,7 @@
 -define(SQS_BODY, <<"message_body">>).
 
 %% API
--export([start_link/1, start_link/2]).
+-export([start_link/0, start_link/1, start_link/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -31,6 +31,11 @@
 
 %% Util functions (also used in tests)
 -export([process_message/1]).
+
+-spec start_link() -> {ok, pid()}.
+start_link() ->
+    {ok, AwsConfig} = ercloud_aws:auto_config(),
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
 
 -spec start_link(aws_config()) -> {ok, pid()}.
 start_link(AwsConfig) ->
