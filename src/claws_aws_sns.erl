@@ -7,18 +7,12 @@
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -record(state, {
-    sns_module :: atom(),
+    sns_module :: module(),
     aws_config = erlcloud_aws:aws_config()
 }).
 
-
--type claws_aws_sns_options() :: #{
-    access_key_id => string(),
-    secret_access_key => string()
-}.
-
 %% API
--export([start_link/1]).
+-export([start_link/1, start_link/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -32,52 +26,20 @@
 -export([send/2,
          send/3]).
 
--spec start_link(claws_aws_sns_options() | binary()) -> {ok, pid()}.
-start_link(Options) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
+-spec start_link(aws_config()) -> {ok, pid()}.
+start_link(AwsConfig) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
+
+-spec start_link(aws_config(), module()) -> {ok, pid()}.
+start_link(AwsConfig, SnsModule) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SnsModule}, []).
 
 %% Callbacks
-init(Options) when is_map(Options) ->
-    SnsModule = maps:get(sns_module, Options, erlcloud_sns),
-    AccessKeyId = maps:get(access_key_id, Options, os:getenv("AWS_ACCESS_KEY_ID")),
-    SecretAccessKey = maps:get(secret_access_key, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
-    SnsPort = maps:get(sns_port, Options, undefined),
-    SnsScheme = maps:get(sns_scheme, Options, undefined),
+init({AwsConfig, SnsModule}) ->
+    {ok, #state{aws_config = AwsConfig, sns_module = SnsModule}};
 
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
-
-    if MissingEnv ->
-        case erlcloud_aws:profile() of
-            {ok, BaseConfig} ->
-                Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
-                {ok, #state{aws_config = Config, sns_module = SnsModule}};
-            {error, _Reason} ->
-                {stop, aws_configuration_not_found}
-        end;
-        true ->
-            BaseConfig = case maps:get(sns_host, Options, undefined) of
-                undefined ->
-                    SnsModule:new(AccessKeyId, SecretAccessKey);
-                Host ->
-                    SnsModule:new(AccessKeyId, SecretAccessKey, Host)
-            end,
-            Config = enrich_aws_config(SnsPort, SnsScheme, BaseConfig),
-            {ok, #state{aws_config = Config, sns_module = SnsModule}}
-    end;
-
-init([]) ->
-    AccessKeyId = os:getenv("AWS_ACCESS_KEY_ID"),
-    SecretAccessKey = os:getenv("AWS_SECRET_ACCESS_KEY"),
-    Config = erlcloud_sns:new(AccessKeyId, SecretAccessKey),
-
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey]),
-
-    if
-        MissingEnv ->
-            {stop, aws_configuration_not_found};
-        true ->
-            {ok, #state{aws_config = Config,sns_module = erlcloud_sns}}
-    end.
+init({AwsConfig}) ->
+    {ok, #state{aws_config = AwsConfig, sns_module = erlcloud_sns}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
@@ -115,12 +77,3 @@ send(Data, JID) ->
 
 send(Data, JID, ID) ->
     gen_server:cast(?MODULE, {send, JID, Data, ID}).
-
-%% Util
-enrich_aws_config(SnsPort, SnsScheme, BaseConfig) ->
-    case {SnsPort, SnsScheme} of
-        {undefined, undefined} -> BaseConfig;
-        {Port, undefined} -> BaseConfig#aws_config{sns_port = Port};
-        {undefined, Scheme} -> BaseConfig#aws_config{sns_scheme = Scheme};
-        {Port, Scheme} -> BaseConfig#aws_config{sns_port = Port, sns_scheme = Scheme}
-    end.

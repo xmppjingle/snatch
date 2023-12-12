@@ -1,13 +1,8 @@
 -module(claws_aws_sns_tests).
 
+-include_lib("erlcloud/include/erlcloud_aws.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("snatch.hrl").
-
--define(OPTIONS, #{
-        access_key_id => "dummy_access_id",
-        secret_access_key => "dummy_secret_key",
-        sns_module => claws_aws_sns_tests_mocks
-    }).
 
 claws_aws_sns_send_message_test_() ->
     {foreach,
@@ -21,7 +16,7 @@ claws_aws_sns_send_message_test_() ->
 setup() ->
     ok = claws_aws_sns_tests_mocks:init(),
     {ok, _} = application:ensure_all_started(snatch),
-    {ok, Pid} = claws_aws_sns:start_link(?OPTIONS),
+    {ok, Pid} = claws_aws_sns:start_link(#aws_config{}, claws_aws_sns_tests_mocks),
     Pid.
 
 stop(Pid) ->
