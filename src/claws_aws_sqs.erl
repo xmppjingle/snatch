@@ -8,20 +8,14 @@
 
 -record(state, {
     aws_config = "" :: erlcloud_aws:aws_config(),
-    sqs_module :: atom() %% TODO possibly do module type/callback trick to give better warnings for Dialyzer
+    sqs_module :: module()
 }).
-
--type claws_aws_sqs_options() :: #{
-    access_key_id => string(),
-    secret_access_key => string(),
-    queue_url => string()
-}.
 
 -define(SQS_MESSAGE_ID, <<"message_id">>).
 -define(SQS_BODY, <<"message_body">>).
 
 %% API
--export([start_link/1]).
+-export([start_link/0, start_link/1, start_link/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -38,53 +32,25 @@
 %% Util functions (also used in tests)
 -export([process_message/1]).
 
--spec start_link(claws_aws_sqs_options() | binary()) -> {ok, pid()}.
-start_link(Options) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Options, []).
+-spec start_link() -> {ok, pid()}.
+start_link() ->
+    {ok, AwsConfig} = erlcloud_aws:auto_config(),
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
+
+-spec start_link(aws_config()) -> {ok, pid()}.
+start_link(AwsConfig) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
+
+-spec start_link(aws_config(), module()) -> {ok, pid()}.
+start_link(AwsConfig, SqsModule) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SqsModule}, []).
 
 %% Callbacks
-init(Options) when is_map(Options) ->
-    AccessKeyId = maps:get(access_key_id, Options, os:getenv("AWS_ACCESS_KEY_ID")),
-    SecretAccessKey = maps:get(secret_access_key, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
-    QueueURL = maps:get(queue_url, Options),
-    SqsModule = maps:get(sqs_module, Options, erlcloud_sqs),
-    SqsProtocol = maps:get(sqs_scheme, Options, undefined),
-    SqsPort = maps:get(sqs_port, Options, undefined),
+init({AwsConfig})  ->
+    init({AwsConfig, erlcloud_sqs});
 
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, QueueURL]),
-
-    if MissingEnv ->
-        case erlcloud_aws:profile() of
-            {ok, BaseConfig} ->
-                Config = enrich_aws_config(SqsProtocol, SqsPort, BaseConfig),
-                {ok, #state{aws_config = Config, sqs_module = SqsModule}};
-            {error, _Reason} ->
-                {stop, aws_configuration_not_found}
-        end;
-    true ->
-        BaseConfig = SqsModule:new(AccessKeyId, SecretAccessKey),
-        Config = enrich_aws_config(SqsProtocol, SqsPort, BaseConfig),
-        {ok, #state{aws_config = Config, sqs_module = SqsModule}}
-    end;
-
-init(QueueURL) when is_binary(QueueURL) ->
-    AccessKeyId = os:getenv("AWS_ACCESS_KEY_ID"),
-    SecretAccessKey = os:getenv("AWS_SECRET_ACCESS_KEY"),
-    Region = os:getenv("AWS_DEFAULT_REGION"),
-
-    MissingEnv = lists:any(fun(V) -> V == false end, [AccessKeyId, SecretAccessKey, Region]),
-
-    if MissingEnv ->
-        case erlcloud_aws:profile() of
-            {ok, Config} ->
-                {ok, #state{aws_config = Config, sqs_module = erlcloud_sqs}};
-            {error, _Reason} ->
-                {stop, aws_configuration_not_found}
-        end;
-    true ->
-        AwsConfig = erlcloud_sqs:new(AccessKeyId, SecretAccessKey, QueueURL),
-        {ok, #state{aws_config = AwsConfig, sqs_module = erlcloud_sqs}}
-    end.
+init({AwsConfig, SqsModule}) ->
+    {ok, #state{aws_config = AwsConfig, sqs_module = SqsModule}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
@@ -155,12 +121,4 @@ received_messages(Message) ->
     case process_message(Message) of
         {error, Reason} -> {error, Reason};
         {ok, TrimmedPacket, Via} -> snatch:received(TrimmedPacket, Via)
-    end.
-
-enrich_aws_config(SqsProtocol, SqsPort, BaseConfig) ->
-    case {SqsProtocol, SqsPort} of
-        {undefined, undefined} -> BaseConfig;
-        {Protocol, undefined} -> BaseConfig#aws_config{sqs_protocol = Protocol};
-        {undefined, Port} -> BaseConfig#aws_config{sqs_port = Port};
-        {Protocol, Port} -> BaseConfig#aws_config{sqs_protocol = Protocol, sqs_port = Port}
     end.

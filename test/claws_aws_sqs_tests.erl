@@ -1,16 +1,10 @@
 -module(claws_aws_sqs_tests).
 
+-include_lib("erlcloud/include/erlcloud_aws.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -include("snatch.hrl").
 
 -define(RECV_WAIT, 1000).
--define(OPTIONS, #{
-        access_key_id => "dummy_access_id",
-        secret_access_key => "dummy_secret_key",
-        region => "dummy_region",
-        queue_url => "dummy_queue_url",
-        sqs_module => claws_aws_sqs_tests_mocks
-    }).
 
 claws_aws_sqs_send_message_test_() ->
     {foreach,
@@ -25,7 +19,7 @@ claws_aws_sqs_send_message_test_() ->
 setup() ->
     ok = claws_aws_sqs_tests_mocks:init([]),
     {ok, _} = application:ensure_all_started(snatch),
-    {ok, Pid} = claws_aws_sqs:start_link(?OPTIONS),
+    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, claws_aws_sqs_tests_mocks),
     Pid.
 
 stop(Pid) ->
