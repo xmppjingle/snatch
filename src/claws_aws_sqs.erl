@@ -35,10 +35,9 @@
 -spec start_link() -> {ok, pid()}.
 start_link() ->
     AwsConfig =
-        try
-            {ok, Config} = erlcloud_aws:auto_config(),
-            Config
-        catch _ ->
+        try erlcloud_aws:auto_config() of
+            {ok, Config} -> Config
+        catch _:_ ->
             erlcloud_aws:default_config()
         end,
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
