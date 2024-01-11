@@ -28,7 +28,12 @@
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
-    {ok, AwsConfig} = erlcloud_aws:auto_config(),
+    AwsConfig =
+        try erlcloud_aws:auto_config() of
+            {ok, Config} -> Config
+        catch _:_ ->
+            erlcloud_aws:default_config()
+        end,
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
 
 -spec start_link(aws_config()) -> {ok, pid()}.
@@ -54,7 +59,7 @@ handle_cast({send, TopicArn, Message}, #state{aws_config = AwsConfig, sns_module
     {noreply, State};
 
 handle_cast({send, TopicArn, Message, Subject}, #state{aws_config = AwsConfig, sns_module = SnsModule} = State) ->
-    SnsModule:publish_to_topic(topic, TopicArn, Message, Subject, AwsConfig),
+    SnsModule:publish_to_topic(TopicArn, Message, Subject, AwsConfig),
     {noreply, State};
 
 handle_cast(_Msg, State) ->
