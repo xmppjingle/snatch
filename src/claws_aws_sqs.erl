@@ -62,11 +62,11 @@ handle_call(_Request, _From, State) ->
 
 handle_cast({send, QueueName, Message}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
     case SqsModule:send_message(QueueName, Message, AwsConfig) of
-        {ok, _Response} ->
+        [{message_id, _MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
             {noreply, State};
-        {error, Reason} ->
-            io:format("error => ~p~n", [Reason]),
-            {noreply, State}
+        ErrorInfo ->
+            io:format("error in SQS send_message/3 => ~p~n", [ErrorInfo]),
+            {stop, {sqs_send_failed, ErrorInfo}, State}
     end;
 
 handle_cast({send, QueueName, Data, Attributes}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
@@ -74,15 +74,15 @@ handle_cast({send, QueueName, Data, Attributes}, #state{aws_config = AwsConfig, 
                                   {binary_to_list(Key), [{data_type, DataType}, {string_value, Value}]}
                               end, Attributes),
     case SqsModule:send_message(QueueName, Data, [{message_attributes, SQSAttributes}], AwsConfig) of
-        {ok, _Response} ->
+        [{message_id, _MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
             {noreply, State};
-        {error, Reason} ->
-            io:format("error => ~p~n", [Reason]),
-            {noreply, State}
+        ErrorInfo ->
+            io:format("error in SQS send_message/3 => ~p~n", [ErrorInfo]),
+            {stop, {sqs_send_failed, ErrorInfo}, State}
     end;
 
 handle_cast({received, QueueUrl}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
-    {ok, Messages} = SqsModule:receive_message(QueueUrl, AwsConfig),
+    Messages = SqsModule:receive_message(QueueUrl, AwsConfig),
     [received_messages(Message) || Message <- Messages],
     {noreply, State};
 
