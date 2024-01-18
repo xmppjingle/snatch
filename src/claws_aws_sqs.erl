@@ -8,14 +8,18 @@
 
 -record(state, {
     aws_config = "" :: erlcloud_aws:aws_config(),
-    sqs_module :: module()
+    max_number_of_messages = 1 :: integer(),
+    poll_interval = 21000 :: integer(),
+    queue :: string(),
+    sqs_module :: module(),
+    wait_timeout_seconds = 20 :: integer()
 }).
 
 -define(SQS_MESSAGE_ID, <<"message_id">>).
 -define(SQS_BODY, <<"message_body">>).
 
 %% API
--export([start_link/0, start_link/1, start_link/2]).
+-export([start_link/1, start_link/2, start_link/6]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -32,30 +36,37 @@
 %% Util functions (also used in tests)
 -export([process_message/1]).
 
--spec start_link() -> {ok, pid()}.
-start_link() ->
+-spec start_link(string()) -> {ok, pid()}.
+start_link(QueueName) ->
     AwsConfig =
         try erlcloud_aws:auto_config() of
             {ok, Config} -> Config
         catch _:_ ->
             erlcloud_aws:default_config()
         end,
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
-
--spec start_link(aws_config()) -> {ok, pid()}.
-start_link(AwsConfig) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig}, []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueName}, []).
 
 -spec start_link(aws_config(), module()) -> {ok, pid()}.
 start_link(AwsConfig, SqsModule) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SqsModule}, []).
 
-%% Callbacks
-init({AwsConfig})  ->
-    init({AwsConfig, erlcloud_sqs});
+-spec start_link(aws_config(), integer(), integer(), string(), module(), integer()) -> {ok, pid()}.
+start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds}, []).
 
-init({AwsConfig, SqsModule}) ->
-    {ok, #state{aws_config = AwsConfig, sqs_module = SqsModule}}.
+%% Callbacks
+init({AwsConfig, QueueName})  ->
+    init({AwsConfig, 1, 21000, QueueName, erlcloud_sqs, 20});
+
+init({AwsConfig, MaxNumberOfMessages, PollInterval, Queue, SqsModule, WaitTimeoutSeconds}) ->
+    erlang:send_after(0, self(), poll_sqs),
+    {ok, #state{
+        aws_config = AwsConfig,
+        max_number_of_messages = MaxNumberOfMessages,
+        poll_interval = PollInterval,
+        queue = Queue,
+        sqs_module = SqsModule,
+        wait_timeout_seconds = WaitTimeoutSeconds}}.
 
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
@@ -81,13 +92,18 @@ handle_cast({send, QueueName, Data, Attributes}, #state{aws_config = AwsConfig, 
             {stop, {sqs_send_failed, ErrorInfo}, State}
     end;
 
-handle_cast({received, QueueUrl}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
-    Messages = SqsModule:receive_message(QueueUrl, AwsConfig),
+handle_cast({received, Messages}, State) ->
     [received_messages(Message) || Message <- Messages],
     {noreply, State};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
+
+handle_info(poll_sqs, #state{aws_config = AwsConfig, max_number_of_messages = MaxNumberOfMessages, poll_interval = PollInterval, queue = Queue, sqs_module = SqsModule, wait_timeout_seconds = WaitTimeoutSeconds} = State) ->
+    Messages = SqsModule:receive_message(Queue, all, MaxNumberOfMessages, none, WaitTimeoutSeconds, AwsConfig),
+    gen_server:cast(?MODULE, {received, Messages}),
+    erlang:send_after(PollInterval, self(), poll_sqs),
+    {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.

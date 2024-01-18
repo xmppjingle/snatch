@@ -18,8 +18,7 @@ claws_aws_sqs_send_message_test_() ->
 
 setup() ->
     ok = claws_aws_sqs_tests_mocks:init([]),
-    {ok, _} = application:ensure_all_started(snatch),
-    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, claws_aws_sqs_tests_mocks),
+    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, 1, 21000, "test-queue", claws_aws_sqs_tests_mocks, 20),
     Pid.
 
 stop(Pid) ->
@@ -31,7 +30,7 @@ test_static_send_receive() ->
     QueueName = <<"test-queue">>,
     Message = <<"<test-message/>">>,
     claws_aws_sqs:send(Message, QueueName),
-    {ok, Results} = claws_aws_sqs_tests_mocks:receive_message(QueueName, {}),
+    Results = claws_aws_sqs_tests_mocks:receive_message(QueueName, {}),
     [
         ?_assert(claws_aws_sqs_tests_mocks:was_message_sent(QueueName, Message)),
         ?_assert(lists:member(Message, Results))
