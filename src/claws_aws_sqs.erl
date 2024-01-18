@@ -123,7 +123,7 @@ send(Data, JID, ID) -> %% TODO not sure what to do with the ID in this context
 
 %% Util
 process_message(Message) ->
-    case jsone:decode(Message, [return_maps]) of
+    case extract_body(Message) of
         {ok, Json} ->
             Body = maps:get(Json, ?SQS_BODY),
             case fxml_stream:parse_element(Body) of
@@ -143,3 +143,14 @@ received_messages(Message) ->
         {error, Reason} -> {error, Reason};
         {ok, TrimmedPacket, Via} -> snatch:received(TrimmedPacket, Via)
     end.
+
+extract_body({messages, Messages}) when is_list(Messages) ->
+    case lists:keyfind(body, 1, lists:flatten(Messages)) of
+        {body, Body} when is_binary(Body) ->
+            {ok, Body};
+        _ ->
+            {error, not_found}
+    end;
+
+extract_body(_Other) ->
+    {error, invalid_format}.
