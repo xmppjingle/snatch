@@ -124,8 +124,7 @@ send(Data, JID, ID) -> %% TODO not sure what to do with the ID in this context
 %% Util
 process_message(Message) ->
     case extract_body(Message) of
-        {ok, Json} ->
-            Body = maps:get(Json, ?SQS_BODY),
+        {ok, Body} ->
             case fxml_stream:parse_element(Body) of
                 {ok, XmlElement} ->
                     Via = #via{claws = ?MODULE},

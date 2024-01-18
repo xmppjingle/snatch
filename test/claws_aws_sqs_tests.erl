@@ -11,6 +11,7 @@ claws_aws_sqs_send_message_test_() ->
      fun setup/0,
      fun stop/1,
      [
+        fun test_process_message/0,
         fun test_static_send_receive/0,
         fun test_snatch/0
      ]
@@ -25,6 +26,14 @@ stop(Pid) ->
     claws_aws_sqs_tests_mocks:stop(),
     gen_server:stop(Pid),
     application:stop(snatch).
+
+test_process_message() ->
+    Contents = <<"<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>">>,
+    Results = claws_aws_sqs:process_message({message, [[{body, Contents}]]}),
+    Via = #via{claws = claws_aws_sqs},
+    [
+        ?_assertMatch([{ok, Contents, Via}], Results)
+    ].
 
 test_static_send_receive() ->
     QueueName = <<"test-queue">>,
