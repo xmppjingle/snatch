@@ -29,7 +29,7 @@ stop(Pid) ->
 
 test_process_message() ->
     Contents = <<"<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>">>,
-    Results = claws_aws_sqs:process_message({message, [[{body, Contents}]]}),
+    Results = claws_aws_sqs:process_messages([{messages, [[{body, Contents}]]}]),
     Via = #via{claws = claws_aws_sqs},
     [
         ?_assertMatch([{ok, Contents, Via}], Results)

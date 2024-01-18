@@ -15,9 +15,6 @@
     wait_timeout_seconds = 20 :: integer()
 }).
 
--define(SQS_MESSAGE_ID, <<"message_id">>).
--define(SQS_BODY, <<"message_body">>).
-
 %% API
 -export([start_link/1, start_link/2, start_link/6]).
 
@@ -34,7 +31,7 @@
          send/3]).
 
 %% Util functions (also used in tests)
--export([process_message/1]).
+-export([process_messages/1]).
 
 -spec start_link(string()) -> {ok, pid()}.
 start_link(QueueName) ->
@@ -93,7 +90,7 @@ handle_cast({send, QueueName, Data, Attributes}, #state{aws_config = AwsConfig, 
     end;
 
 handle_cast({received, Messages}, State) ->
-    [received_messages(Message) || Message <- Messages],
+    process_messages(Messages),
     {noreply, State};
 
 handle_cast(_Msg, State) ->
@@ -122,34 +119,17 @@ send(Data, JID, ID) -> %% TODO not sure what to do with the ID in this context
     gen_server:cast(?MODULE, {send, JID, Data, MessageAttributes}).
 
 %% Util
-process_message(Message) ->
-    case extract_body(Message) of
-        {ok, Body} ->
-            case fxml_stream:parse_element(Body) of
-                {ok, XmlElement} ->
-                    Via = #via{claws = ?MODULE},
-                    TrimmedPacket = snatch_xml:clean_spaces(XmlElement),
-                    {ok, TrimmedPacket, Via};
-                {error, _Reason} ->
-                    {error, xml_parsing_failed}
-            end;
+process_messages(MessageList) ->
+    Messages = proplists:get_value(messages, MessageList, []),
+    Bodies = [proplists:get_value(body, Msg) || Msg <- Messages],
+    Packets = [process_body(list_to_binary(Body)) || Body <- Bodies],
+    lists:foreach(fun ({ok, Packet, Via}) -> snatch:received(Packet, Via) end,
+                    Packets).
+
+process_body(Body) ->
+    case fxml_stream:parse_element(Body) of
         {error, _Reason} ->
-            {error, json_parsing_failed}
-        end.
-
-received_messages(Message) ->
-    case process_message(Message) of
-        {error, Reason} -> {error, Reason};
-        {ok, TrimmedPacket, Via} -> snatch:received(TrimmedPacket, Via)
+            {error, xml_parsing_failed};
+        Packet ->
+            {ok, Packet, #via{claws = ?MODULE}}
     end.
-
-extract_body({messages, Messages}) when is_list(Messages) ->
-    case lists:keyfind(body, 1, lists:flatten(Messages)) of
-        {body, Body} when is_binary(Body) ->
-            {ok, Body};
-        _ ->
-            {error, not_found}
-    end;
-
-extract_body(_Other) ->
-    {error, invalid_format}.
