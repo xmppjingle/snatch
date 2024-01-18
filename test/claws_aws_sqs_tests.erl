@@ -28,7 +28,7 @@ stop(Pid) ->
     application:stop(snatch).
 
 test_process_message() ->
-    Contents = <<"<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>">>,
+    Contents = "<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>",
     Results = claws_aws_sqs:process_messages([{messages, [[{body, Contents}]]}]),
     Via = #via{claws = claws_aws_sqs},
     [

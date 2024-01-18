@@ -16,7 +16,7 @@
 }).
 
 %% API
--export([start_link/1, start_link/2, start_link/6]).
+-export([start_link/1, start_link/6]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -42,10 +42,6 @@ start_link(QueueName) ->
             erlcloud_aws:default_config()
         end,
     gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueName}, []).
-
--spec start_link(aws_config(), module()) -> {ok, pid()}.
-start_link(AwsConfig, SqsModule) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, SqsModule}, []).
 
 -spec start_link(aws_config(), integer(), integer(), string(), module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds) ->
