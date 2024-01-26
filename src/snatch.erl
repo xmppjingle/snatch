@@ -5,7 +5,7 @@
 
 -include("snatch.hrl").
 
--type claws() :: claws_rabbitmq | claws_xmpp | claws_xmpp_comp.
+-type claws() :: claws_rabbitmq | claws_xmpp | claws_xmpp_comp | claws_aws_sqs.
 
 -record(state, {claws :: claws(),
                 callback :: module(),
@@ -102,7 +102,7 @@ disconnected(Data) ->
 
 -spec init([term()]) -> {ok, #state{}} | {stop, Reason :: atom()}.
 %% @doc initialize the snatch process. It could be only one per node.
-init([Claws, Module, Args]) ->    
+init([Claws, Module, Args]) ->
     case Module:init(Args) of
         {ok, State} ->
             {ok, #state{claws = Claws,

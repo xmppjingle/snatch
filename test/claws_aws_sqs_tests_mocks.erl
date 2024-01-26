@@ -4,6 +4,7 @@
     init/1,
     new/2,
     receive_message/2,
+    receive_message/6,
     send_message/3,
     send_message/4,
     stop/0,
@@ -21,11 +22,11 @@ new(_Access, _Secret) ->
 
 send_message(QueueName, Message, _AwsConfig) ->
     ets:insert(?TABLE, {QueueName, Message}),
-    {ok, {message_id, "MockMessageId"}}.
+    [{message_id, "MockMessageId"}, {md5_of_message_body, "MockMD5"}].
 
 send_message(QueueName, Message, _MsgAttrs, _AwsConfig) ->
     ets:insert(?TABLE, {QueueName, Message}),
-    {ok, {message_id, "MockMessageId"}}.
+    [{message_id, "MockMessageId"}, {md5_of_message_body, "MockMD5"}].
 
 receive_message(QueueName, _AwsConfig) ->
     Messages = ets:lookup(?TABLE, QueueName),
@@ -35,8 +36,11 @@ receive_message(QueueName, _AwsConfig) ->
         (_) -> false
     end, Results) of
         true -> {error, process_message_failed};
-        _ -> {ok, Results}
+        _ -> Results
     end.
+
+receive_message(QueueName, _, _, _, _, AwsConfig) ->
+    receive_message(QueueName, AwsConfig).
 
 was_message_sent(QueueName, Message) ->
     Messages = ets:lookup(?TABLE, QueueName),
