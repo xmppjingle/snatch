@@ -41,11 +41,11 @@ start_link(QueueName) ->
         catch _:_ ->
             erlcloud_aws:default_config()
         end,
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueName}, []).
+    gen_server:start_link({local, {?MODULE, QueueName}}, ?MODULE, {AwsConfig, QueueName}, []).
 
 -spec start_link(aws_config(), integer(), integer(), string(), module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds}, []).
+    gen_server:start_link({local, {?MODULE, QueueName}}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds}, []).
 
 %% Callbacks
 init({AwsConfig, QueueName})  ->
