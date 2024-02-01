@@ -35,7 +35,17 @@
 %% Util functions (also used in tests)
 -export([process_messages/1]).
 
--spec start_link(string()) -> {ok, pid()}.
+-spec start_link(string() | [string()]) -> {ok, pid()}.
+start_link(QueueNames) when is_list(QueueNames) ->
+    AwsConfig =
+        try erlcloud_aws:auto_config() of
+            {ok, Config} -> Config
+        catch _:_ ->
+            erlcloud_aws:default_config()
+        end,
+    ServerName = {local, list_to_atom(?PROC_PREFIX ++ lists:append(QueueNames))},
+    gen_server:start_link(ServerName, ?MODULE, {AwsConfig, QueueNames}, []);
+
 start_link(QueueName) ->
     AwsConfig =
         try erlcloud_aws:auto_config() of
