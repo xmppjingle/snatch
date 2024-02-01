@@ -33,7 +33,7 @@
          send/3]).
 
 %% Util functions (also used in tests)
--export([process_messages/1]).
+-export([process_messages/1, server_name/1]).
 
 -spec start_link(string() | [string()]) -> {ok, pid()}.
 start_link(QueueName) ->
@@ -43,13 +43,14 @@ start_link(QueueName) ->
         catch _:_ ->
             erlcloud_aws:default_config()
         end,
-    QueueIdentifier = queue_name_to_id(QueueName),
-    ServerName = {local, list_to_atom(QueueIdentifier)},
+    QueueIdentifier = server_name(QueueName),
+    ServerName = {local, QueueIdentifier},
     gen_server:start_link(ServerName, ?MODULE, {AwsConfig, [QueueName]}, []).
 
 -spec start_link(aws_config(), integer(), integer(), [string()], module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds) ->
-    ServerName = {local, erlang:phash2(QueueNames)},
+    QueueIdentifier = server_name(QueueNames),
+    ServerName = {local, QueueIdentifier},
     gen_server:start_link(ServerName, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds}, []).
 
 %% Callbacks
@@ -136,6 +137,6 @@ process_body(Body) ->
             {ok, Packet, #via{claws = ?MODULE}}
     end.
 
-queue_name_to_id(QueueName) when is_list(QueueName) ->
+server_name(QueueName) when is_list(QueueName) ->
     Concatenated = lists:flatten(QueueName),
-    integer_to_list(erlang:phash2(Concatenated)).
+    list_to_atom(?PREFIX ++ integer_to_list(erlang:phash2(Concatenated))).
