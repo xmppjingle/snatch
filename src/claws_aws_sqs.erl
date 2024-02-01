@@ -92,9 +92,8 @@ handle_cast({received, Messages}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(poll_sqs, #state{aws_config = AwsConfig, max_number_of_messages = MaxNumberOfMessages, poll_interval = PollInterval, queues = Queues, sqs_module = SqsModule, wait_timeout_seconds = WaitTimeoutSeconds} = State) ->
-    MessagesL = [SqsModule:receive_message(Queue, all, MaxNumberOfMessages, none, WaitTimeoutSeconds, AwsConfig) || Queue <- Queues],
-    Messages = lists:flatten(MessagesL),
+handle_info(poll_sqs, #state{poll_interval = PollInterval, queues = Queues} = State) ->
+    Messages = receive_sqs_queue([], Queues, State),
     gen_server:cast(?MODULE, {received, Messages}),
     erlang:send_after(PollInterval, self(), poll_sqs),
     {noreply, State};
@@ -130,3 +129,10 @@ process_body(Body) ->
         Packet ->
             {ok, Packet, #via{claws = ?MODULE}}
     end.
+
+receive_sqs_queue(Acc, [], _State) ->
+    lists:flatten(Acc);
+receive_sqs_queue(Acc, [Queue | Queues], #state{aws_config = AwsConfig, max_number_of_messages = MaxNumberOfMessages, sqs_module = SqsModule, wait_timeout_seconds = WaitTimeoutSeconds} = State) ->
+    Message = SqsModule:receive_message(Queue, all, MaxNumberOfMessages, none, WaitTimeoutSeconds, AwsConfig),
+    NewAcc = Message ++ Acc,
+    receive_sqs_queue(NewAcc, Queues, State).
