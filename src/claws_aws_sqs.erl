@@ -6,8 +6,6 @@
 -include("snatch.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
--define(PREFIX, "claws_aws_sqs_").
-
 -record(state, {
     aws_config = "" :: erlcloud_aws:aws_config(),
     max_number_of_messages = 1 :: integer(),
@@ -33,25 +31,21 @@
          send/3]).
 
 %% Util functions (also used in tests)
--export([process_messages/1, server_name/1]).
+-export([process_messages/1]).
 
--spec start_link(string() | [string()]) -> {ok, pid()}.
-start_link(QueueName) ->
+-spec start_link([string()]) -> {ok, pid()}.
+start_link(QueueNames) ->
     AwsConfig =
         try erlcloud_aws:auto_config() of
             {ok, Config} -> Config
         catch _:_ ->
             erlcloud_aws:default_config()
         end,
-    QueueIdentifier = server_name(QueueName),
-    ServerName = {local, QueueIdentifier},
-    gen_server:start_link(ServerName, ?MODULE, {AwsConfig, [QueueName]}, []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueNames}, []).
 
 -spec start_link(aws_config(), integer(), integer(), [string()], module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds) ->
-    QueueIdentifier = server_name(QueueNames),
-    ServerName = {local, QueueIdentifier},
-    gen_server:start_link(ServerName, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds}, []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds}, []).
 
 %% Callbacks
 init({AwsConfig, QueueNames})  ->
@@ -136,7 +130,3 @@ process_body(Body) ->
         Packet ->
             {ok, Packet, #via{claws = ?MODULE}}
     end.
-
-server_name(QueueName) when is_list(QueueName) ->
-    Concatenated = lists:flatten(QueueName),
-    list_to_atom(?PREFIX ++ integer_to_list(erlang:phash2(Concatenated))).
