@@ -1,37 +1,23 @@
 -module(claws_aws_sqs).
 
--behaviour(gen_server).
+-behaviour(supervisor).
 -behaviour(claws).
 
 -include("snatch.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
--record(state, {
-    aws_config = "" :: erlcloud_aws:aws_config(),
-    max_number_of_messages = 1 :: integer(),
-    poll_interval = 21000 :: integer(),
-    queues :: [string()],
-    sqs_module :: module(),
-    wait_timeout_seconds = 20 :: integer()
-}).
+-define(PREFIX, "claws_aws_sqs_").
+-define(SENDER_PROC, sender_proc).
 
 %% API
--export([start_link/1, start_link/6]).
+-export([start_link/1, start_link/2, start_link/6]).
 
-%% gen_server callbacks
--export([init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+%% supervisor callbacks
+-export([init/1]).
 
 %% claws callbacks
 -export([send/2,
          send/3]).
-
-%% Util functions (also used in tests)
--export([process_messages/1]).
 
 -spec start_link([string()]) -> {ok, pid()}.
 start_link(QueueNames) ->
@@ -41,98 +27,101 @@ start_link(QueueNames) ->
         catch _:_ ->
             erlcloud_aws:default_config()
         end,
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueNames}, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueNames}).
+
+-spec start_link(aws_config(), [string()]) -> {ok, pid()}.
+start_link(AwsConfig, QueueNames) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueNames}).
 
 -spec start_link(aws_config(), integer(), integer(), [string()], module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds}, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueNames, SqsModule, WaitTimeoutSeconds}).
 
 %% Callbacks
-init({AwsConfig, QueueNames})  ->
-    init({AwsConfig, 1, 21000, QueueNames, erlcloud_sqs, 20});
+init({AwsConfig, QueueNames}) ->
+    Config = #{
+        aws_config => AwsConfig,
+        sqs_module => erlcloud_sqs
+    },
+    put(config, Config),
+    SupFlags = #{strategy => one_for_one, intensity => 1, period => 5},
+    ChildSpecs = lists:map(fun(Q) -> create_consumer_child_spec([AwsConfig, Q]) end, QueueNames),
+    SenderPid = spawn_link(fun () ->
+        put(config, Config),
+        send_loop()
+    end),
+    register(?SENDER_PROC, SenderPid),
+    {ok, {SupFlags, ChildSpecs}};
 
 init({AwsConfig, MaxNumberOfMessages, PollInterval, Queues, SqsModule, WaitTimeoutSeconds}) ->
-    erlang:send_after(0, self(), poll_sqs),
-    {ok, #state{
-        aws_config = AwsConfig,
-        max_number_of_messages = MaxNumberOfMessages,
-        poll_interval = PollInterval,
-        queues = Queues,
-        sqs_module = SqsModule,
-        wait_timeout_seconds = WaitTimeoutSeconds}}.
+    Config = #{
+        aws_config => AwsConfig,
+        sqs_module => erlcloud_sqs
+    },
+    SupFlags = #{strategy => one_for_one, intensity => 1, period => 5},
+    ChildSpecs = lists:map(fun(Q) ->
+        Args = [AwsConfig, Q, MaxNumberOfMessages, PollInterval, Queues, SqsModule, WaitTimeoutSeconds],
+        create_consumer_child_spec(Args)
+    end, Queues),
+    SenderPid = spawn_link(fun () ->
+        put(config, Config),
+        send_loop()
+    end),
+    register(?SENDER_PROC, SenderPid),
+    {ok, {SupFlags, ChildSpecs}}.
 
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
-
-handle_cast({send, QueueName, Message}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
-    case SqsModule:send_message(QueueName, Message, AwsConfig) of
-        [{message_id, _MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
-            {noreply, State};
-        ErrorInfo ->
-            io:format("error in SQS send_message/3 => ~p~n", [ErrorInfo]),
-            {stop, {sqs_send_failed, ErrorInfo}, State}
-    end;
-
-handle_cast({send, QueueName, Data, Attributes}, #state{aws_config = AwsConfig, sqs_module = SqsModule} = State) ->
-    SQSAttributes = lists:map(fun({Key, {DataType, Value}}) ->
-                                  {binary_to_list(Key), [{data_type, DataType}, {string_value, Value}]}
-                              end, Attributes),
-    case SqsModule:send_message(QueueName, Data, [{message_attributes, SQSAttributes}], AwsConfig) of
-        [{message_id, _MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
-            {noreply, State};
-        ErrorInfo ->
-            io:format("error in SQS send_message/3 => ~p~n", [ErrorInfo]),
-            {stop, {sqs_send_failed, ErrorInfo}, State}
-    end;
-
-handle_cast({received, Messages}, State) ->
-    process_messages(Messages),
-    {noreply, State};
-
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_info(poll_sqs, #state{poll_interval = PollInterval, queues = Queues} = State) ->
-    Messages = receive_sqs_queue([], Queues, State),
-    gen_server:cast(?MODULE, {received, Messages}),
-    erlang:send_after(PollInterval, self(), poll_sqs),
-    {noreply, State};
-
-handle_info(_Info, State) ->
-    {noreply, State}.
-
-terminate(_Reason, _State) ->
-    ok.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
+%% Claws callbacks
 send(Data, JID) ->
-    gen_server:cast(?MODULE, {send, JID, Data}).
+    ?SENDER_PROC ! {send, Data, JID}.
 
-send(Data, JID, ID) -> %% TODO not sure what to do with the ID in this context
-    MessageAttributes = [{<<"Id">>, {string, ID}}],
-    gen_server:cast(?MODULE, {send, JID, Data, MessageAttributes}).
+send(Data, JID, ID) ->
+    ?SENDER_PROC ! {send, Data, JID, ID}.
 
-%% Util
-process_messages(MessageList) ->
-    Messages = proplists:get_value(messages, MessageList, []),
-    Bodies = [proplists:get_value(body, Msg) || Msg <- Messages],
-    Packets = [process_body(list_to_binary(Body)) || Body <- Bodies],
-    lists:foreach(fun ({ok, Packet, Via}) -> snatch:received(Packet, Via) end,
-                    Packets).
+create_consumer_child_spec([AwsConfig, QueueName]) ->
+    #{id => ?PREFIX ++ QueueName,
+      start => {claws_aws_sqs_consumer, start_link, [AwsConfig, QueueName]},
+      restart => permanent,
+      shutdown => 5000,
+      type => worker,
+      modules => [claws_aws_sqs_consumer]};
 
-process_body(Body) ->
-    case fxml_stream:parse_element(Body) of
-        {error, _Reason} ->
-            {error, xml_parsing_failed};
-        Packet ->
-            {ok, Packet, #via{claws = ?MODULE}}
+create_consumer_child_spec([AwsConfig, QueueName, MaxNumberOfMessages, PollInterval, Queues, SqsModule, WaitTimeoutSeconds]) ->
+    #{id => ?PREFIX ++ QueueName,
+      start => {claws_aws_sqs_consumer, start_link, [AwsConfig, QueueName,  MaxNumberOfMessages, PollInterval, Queues, SqsModule, WaitTimeoutSeconds]},
+      restart => permanent,
+      shutdown => 5000,
+      type => worker,
+      modules => [claws_aws_sqs_consumer]}.
+
+proc_send(Data, JID) ->
+    #{aws_config := AwsConfig, sqs_module := SqsModule} = get(config),
+    case SqsModule:send_message(JID, Data, AwsConfig) of
+        [{message_id, MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
+            {ok, MessageId};
+        ErrorInfo ->
+            {error, ErrorInfo}
     end.
 
-receive_sqs_queue(Acc, [], _State) ->
-    lists:flatten(Acc);
-receive_sqs_queue(Acc, [Queue | Queues], #state{aws_config = AwsConfig, max_number_of_messages = MaxNumberOfMessages, sqs_module = SqsModule, wait_timeout_seconds = WaitTimeoutSeconds} = State) ->
-    Message = SqsModule:receive_message(Queue, all, MaxNumberOfMessages, none, WaitTimeoutSeconds, AwsConfig),
-    NewAcc = Message ++ Acc,
-    receive_sqs_queue(NewAcc, Queues, State).
+proc_send(Data, JID, ID) ->
+    #{aws_config := AwsConfig, sqs_module := SqsModule} = get(config),
+    MessageAttributes = [{<<"Id">>, {string, ID}}],
+    SQSAttributes = lists:map(fun({Key, {DataType, Value}}) ->
+                                  {binary_to_list(Key), [{data_type, DataType}, {string_value, Value}]}
+                              end, MessageAttributes),
+    case SqsModule:send_message(JID, Data, [{message_attributes, SQSAttributes}], AwsConfig) of
+        [{message_id, MessageId}, {md5_of_message_body, _Md5OfMessageBody}] ->
+            {ok, MessageId};
+        ErrorInfo ->
+            {error, ErrorInfo}
+    end.
+
+send_loop() ->
+    receive
+        {send, Data, JID} ->
+            proc_send(Data, JID),
+            send_loop();
+        {send, Data, JID, ID} ->
+            proc_send(Data, JID, ID),
+            send_loop();
+        _ ->  send_loop()
+    end.

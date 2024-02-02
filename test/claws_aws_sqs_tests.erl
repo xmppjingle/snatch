@@ -19,17 +19,17 @@ claws_aws_sqs_send_message_test_() ->
 
 setup() ->
     ok = claws_aws_sqs_tests_mocks:init([]),
-    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, 1, 21000, ["test-queue"], claws_aws_sqs_tests_mocks, 20),
+    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, 1, 21000, [], claws_aws_sqs_tests_mocks, 20),
     Pid.
 
 stop(Pid) ->
     claws_aws_sqs_tests_mocks:stop(),
-    gen_server:stop(Pid),
+    exit(Pid, shutdown),
     application:stop(snatch).
 
 test_process_message() ->
     Contents = "<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>",
-    Results = claws_aws_sqs:process_messages([{messages, [[{body, Contents}]]}]),
+    Results = claws_aws_sqs_consumer:process_messages([{messages, [[{body, Contents}]]}]),
     Via = #via{claws = claws_aws_sqs},
     [
         ?_assertMatch([{ok, Contents, Via}], Results)
