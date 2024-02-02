@@ -31,11 +31,11 @@
 
 -spec start_link(aws_config(), string()) -> {ok, pid()}.
 start_link(AwsConfig, QueueName) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, QueueName}, []).
+    gen_server:start_link(?MODULE, {AwsConfig, QueueName}, []).
 
 -spec start_link(aws_config(), integer(), integer(), [string()], module(), integer()) -> {ok, pid()}.
 start_link(AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds}, []).
+    gen_server:start_link(?MODULE, {AwsConfig, MaxNumberOfMessages, PollInterval, QueueName, SqsModule, WaitTimeoutSeconds}, []).
 
 %% Callbacks
 init({AwsConfig, QueueName})  ->
