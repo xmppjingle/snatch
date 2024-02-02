@@ -29,7 +29,12 @@ stop(Pid) ->
 
 test_process_message() ->
     Contents = "<iq id=\"test-bot\" to=\"alice@localhost\" from=\"bob@localhost/pc\" type=\"get\"><query/></iq>",
-    Results = claws_aws_sqs_consumer:process_messages([{messages, [[{body, Contents}]]}]),
+    Results = claws_aws_sqs_consumer:process_messages(
+        [{messages, [[{body, Contents}, {receipt_handle,"YzUyYzA0ZTctMzYwM"}]]}],
+        claws_aws_sqs_tests_mocks,
+        "Test",
+        #aws_config{}
+    ),
     Via = #via{claws = claws_aws_sqs},
     [
         ?_assertMatch([{ok, Contents, Via}], Results)

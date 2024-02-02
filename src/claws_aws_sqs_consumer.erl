@@ -16,7 +16,7 @@
          code_change/3]).
 
 %% Util functions (also used in tests)
--export([process_messages/1]).
+-export([process_messages/4]).
 
 -record(state, {
     aws_config = "" :: erlcloud_aws:aws_config(),
@@ -57,7 +57,7 @@ handle_cast(_Msg, State) ->
 
 handle_info(poll_sqs, #state{aws_config = AwsConfig, max_number_of_messages = MaxNumberOfMessages, poll_interval = PollInterval, queue = Queue, sqs_module = SqsModule, wait_timeout_seconds = WaitTimeoutSeconds} = State) ->
     Messages = SqsModule:receive_message(Queue, all, MaxNumberOfMessages, none, WaitTimeoutSeconds, AwsConfig),
-    process_messages(Messages),
+    process_messages(Messages, SqsModule, Queue, AwsConfig),
     erlang:send_after(PollInterval, self(), poll_sqs),
     {noreply, State};
 
@@ -71,14 +71,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% Util
-process_messages(MessageList) ->
+process_messages(MessageList, SqsModule, QueueName, AwsConfig) ->
     Messages = proplists:get_value(messages, MessageList, []),
-    Bodies = [proplists:get_value(body, Msg) || Msg <- Messages],
-    Packets = [process_body(list_to_binary(Body)) || Body <- Bodies],
-    lists:foreach(fun ({ok, Packet, Via}) ->
-        snatch:received(Packet, Via)
+    lists:foreach(fun(M) ->
+        {ok, Packet, Via} = process_body(list_to_binary(proplists:get_value(body, M))),
+        Receipt = proplists:get_value(receipt_handle, M),
+        snatch:received(Packet, Via),
+        SqsModule:delete_message(QueueName, Receipt, AwsConfig)
     end,
-    Packets).
+    Messages).
 
 process_body(Body) ->
     case fxml_stream:parse_element(Body) of
