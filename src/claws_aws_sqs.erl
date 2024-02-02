@@ -123,8 +123,5 @@ send_loop() ->
         {send, Data, JID, ID} ->
             proc_send(Data, JID, ID),
             send_loop();
-        {received, {Packet, Via}} ->
-            snatch:received(Packet, Via),
-            send_loop();
         _ ->  send_loop()
     end.

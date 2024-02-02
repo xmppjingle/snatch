@@ -4,8 +4,6 @@
 -include("snatch.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
--define(SENDER_PROC, claws_aws_sqs_sender_proc).
-
 %% API
 -export([start_link/2, start_link/6]).
 
@@ -78,7 +76,7 @@ process_messages(MessageList) ->
     Bodies = [proplists:get_value(body, Msg) || Msg <- Messages],
     Packets = [process_body(list_to_binary(Body)) || Body <- Bodies],
     lists:foreach(fun ({ok, Packet, Via}) ->
-        gen_server:cast(?SENDER_PROC, {received, {Packet, Via}})
+        snatch:received(Packet, Via)
     end,
     Packets).
 
@@ -87,5 +85,5 @@ process_body(Body) ->
         {error, _Reason} ->
             {error, xml_parsing_failed};
         Packet ->
-            {ok, Packet, #via{claws = ?MODULE}}
+            {ok, Packet, #via{claws = claws_aws_sqs}}
     end.
