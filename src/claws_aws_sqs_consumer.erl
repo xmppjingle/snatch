@@ -4,7 +4,7 @@
 -include("snatch.hrl").
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
--define(SUPERVISOR, claws_aws_sqs).
+-define(SENDER_PROC, claws_aws_sqs_sender_proc).
 
 %% API
 -export([start_link/2, start_link/6]).
@@ -78,7 +78,7 @@ process_messages(MessageList) ->
     Bodies = [proplists:get_value(body, Msg) || Msg <- Messages],
     Packets = [process_body(list_to_binary(Body)) || Body <- Bodies],
     lists:foreach(fun ({ok, Packet, Via}) ->
-        gen_server:cast(?SUPERVISOR, {received, {Packet, Via}})
+        gen_server:cast(?SENDER_PROC, {received, {Packet, Via}})
     end,
     Packets).
 

@@ -7,7 +7,7 @@
 -include_lib("erlcloud/include/erlcloud_aws.hrl").
 
 -define(PREFIX, "claws_aws_sqs_").
--define(SENDER_PROC, sender_proc).
+-define(SENDER_PROC, claws_aws_sqs_sender_proc).
 
 %% API
 -export([start_link/1, start_link/2, start_link/6]).
@@ -122,6 +122,9 @@ send_loop() ->
             send_loop();
         {send, Data, JID, ID} ->
             proc_send(Data, JID, ID),
+            send_loop();
+        {received, {Packet, Via}} ->
+            snatch:received(Packet, Via),
             send_loop();
         _ ->  send_loop()
     end.
