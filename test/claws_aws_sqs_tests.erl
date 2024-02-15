@@ -19,7 +19,7 @@ claws_aws_sqs_send_message_test_() ->
 
 setup() ->
     ok = claws_aws_sqs_tests_mocks:init([]),
-    {ok, Pid} = claws_aws_sqs:start_link(#aws_config{}, 1, 21000, [], claws_aws_sqs_tests_mocks, 20),
+    {ok, Pid} = claws_aws_sqs:start_link({local, claws_aws_sqs}, #aws_config{}, 1, 21000, [], claws_aws_sqs_tests_mocks, 20),
     Pid.
 
 stop(Pid) ->
