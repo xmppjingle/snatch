@@ -1,6 +1,7 @@
 -module(claws_aws_sqs_tests_mocks).
 
 -export([
+    delete_message/3,
     init/1,
     new/2,
     receive_message/2,
@@ -13,12 +14,15 @@
 
 -define(TABLE, claws_aws_sqs_tests_mocks_table).
 
-init([]) ->
+init(_Args) ->
     ets:new(?TABLE, [set, named_table, public]),
     ok.
 
 new(_Access, _Secret) ->
     {}.
+
+delete_message(_QueueName, _ReceiptHandle, _Config) ->
+    ok.
 
 send_message(QueueName, Message, _AwsConfig) ->
     ets:insert(?TABLE, {QueueName, Message}),
