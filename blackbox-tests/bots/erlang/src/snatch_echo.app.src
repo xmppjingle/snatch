@@ -1,0 +1,8 @@
+{application, snatch_echo,
+ [{description, "Snatch echo bot for blackbox testing"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [kernel, stdlib, snatch]},
+  {mod, {snatch_echo_app, []}},
+  {env, []}
+ ]}.

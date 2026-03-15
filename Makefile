@@ -25,4 +25,8 @@ eunit:
 shell:
 	./rebar3 shell
 
-.PHONY: doc test compile all shell eunit
+test-docker:
+	docker build -f Dockerfile.test -t snatch-test .
+	docker run --rm snatch-test
+
+.PHONY: doc test compile all shell eunit test-docker

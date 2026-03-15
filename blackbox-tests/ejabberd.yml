@@ -1,0 +1,73 @@
+loglevel: info
+hosts:
+  - localhost
+
+listen:
+  -
+    port: 5222
+    ip: "::"
+    module: ejabberd_c2s
+    max_stanza_size: 262144
+    shaper: c2s_shaper
+    access: c2s
+    starttls: false
+  -
+    port: 5275
+    ip: "::"
+    module: ejabberd_service
+    access: all
+    shaper_rule: fast
+    hosts:
+      "echo.localhost":
+        password: "secret"
+      "bench.localhost":
+        password: "secret"
+  -
+    port: 5280
+    ip: "::"
+    module: ejabberd_http
+    request_handlers:
+      /admin: ejabberd_web_admin
+
+auth_method: internal
+auth_password_format: plain
+
+acl:
+  admin:
+    user: admin@localhost
+  local:
+    user_regexp: ""
+
+access_rules:
+  local:
+    allow: local
+  c2s:
+    deny: blocked
+    allow: all
+
+shaper:
+  normal:
+    rate: 3000
+    burst_size: 20000
+  fast:
+    rate: 100000
+    burst_size: 100000
+
+shaper_rules:
+  max_user_sessions: 100
+  c2s_shaper:
+    none: admin
+    normal: all
+  s2s_shaper: fast
+
+modules:
+  mod_disco: {}
+  mod_ping: {}
+  mod_register:
+    ip_access: all
+    access: all
+  mod_roster: {}
+  mod_offline:
+    access_max_user_messages:
+      5000: admin
+      100: all

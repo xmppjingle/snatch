@@ -17,3 +17,5 @@ snatch.iml
 AuthKey_HBJ5WFCKUK.p8
 cert12.pem
 key2-noenc.pem
+/blackbox-tests/.venv
+/blackbox-tests/bots/rust/target

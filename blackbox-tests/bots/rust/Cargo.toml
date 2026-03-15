@@ -1,0 +1,17 @@
+[package]
+name = "rnatch-echo-bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rnatch = { path = "../../.." }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+lapin = "2"
+rdkafka = { version = "0.37", features = ["cmake-build"] }
+aws-sdk-sqs = "1"
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+futures = "0.3"
+async-trait = "0.1"

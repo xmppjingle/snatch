@@ -1,0 +1,41 @@
+[
+  {
+    "test": "xmpp_message_latency",
+    "sut": "erlang",
+    "transport": "xmpp",
+    "messages_sent": 1000,
+    "messages_received": 768,
+    "throughput_msg_s": 38.2,
+    "avg_ms": 6440.674,
+    "p50_ms": 5149.959,
+    "p95_ms": 17434.339,
+    "p99_ms": 17435.74,
+    "errors": 232
+  },
+  {
+    "test": "xmpp_throughput_burst",
+    "sut": "erlang",
+    "transport": "xmpp",
+    "messages_sent": 1000,
+    "messages_received": 844,
+    "throughput_msg_s": 42.1,
+    "avg_ms": 7476.788,
+    "p50_ms": 7303.765,
+    "p95_ms": 19588.182,
+    "p99_ms": 19590.001,
+    "errors": 156
+  },
+  {
+    "test": "xmpp_iq_roundtrip",
+    "sut": "erlang",
+    "transport": "xmpp",
+    "messages_sent": 200,
+    "messages_received": 199,
+    "throughput_msg_s": 32.8,
+    "avg_ms": 12.334,
+    "p50_ms": 12.936,
+    "p95_ms": 14.294,
+    "p99_ms": 14.526,
+    "errors": 1
+  }
+]

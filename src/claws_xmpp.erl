@@ -97,13 +97,14 @@ disconnected(Type, connect, #data{domain = Domain, host = Host, port = Port} = D
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};
         Error ->
-            error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
-                                   [Host, Port, Error]),
+            lager:error("Connecting Error [~p:~p]: ~p", [Host, Port, Error]),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
     end;
 
 disconnected(cast, disconnect, _Data) ->
     {keep_state_and_data, []};
+disconnected(_, {send, _}, Data) ->
+    {keep_state, Data, []};
 disconnected(_, {send, _, _, _}, Data) ->
     {keep_state, Data, []}.
 
@@ -196,7 +197,7 @@ handle_event(info, {tcp_closed, _Socket}, _State, #data{stream = Stream} = Data)
 handle_event(info, {tcp_error, _Socket, Reason}, _State, #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
-    error_logger:error_msg("tcp closed error: ~p~n", [Reason]),
+    lager:error("tcp closed error: ~p", [Reason]),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamstart, _Name, _Attribs}}, _State, _Data) ->
     {keep_state_and_data, []};
@@ -205,7 +206,7 @@ handle_event(info, {'$gen_event', {xmlstreamend, _Name}}, _State, #data{stream =
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {'$gen_event', {xmlstreamerror, Error}}, _State, #data{stream = Stream} = Data) ->
-    error_logger:error_msg("Stream Error: ~p ~n", [Error]),
+    lager:error("Stream Error: ~p", [Error]),
     snatch:disconnected(?MODULE),
     close_stream(Stream),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
@@ -216,7 +217,7 @@ handle_event(Type, Content, State, Data) ->
         true ->
             ?MODULE:State(Type, Content, Data);
         _ -> 
-            error_logger:error_msg("Unknown Function: ~p~n", [State])
+            lager:error("Unknown Function: ~p", [State])
     end.
 
 terminate(_Reason, _StateName, _StateData) ->

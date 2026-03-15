@@ -144,8 +144,7 @@ disconnected(Type, connect, #data{host = Host, port = Port} = Data)
             {next_state, connected, Data#data{socket = NewSocket},
              [{next_event, cast, init_stream}]};
         Error ->
-            error_logger:error_msg("Connecting Error [~p:~p]: ~p~n",
-                                   [Host, Port, Error]),
+            lager:error("Connecting Error [~p:~p]: ~p", [Host, Port, Error]),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
     end;
 disconnected(_, {send, _, _, _}, Data) ->
@@ -174,7 +173,7 @@ stream_init(cast, {received, {xmlstreamstart, _, Attribs}}, Data) ->
             {next_state, authenticate, Data,
              [{next_event, cast, {handshake, StreamID}}]};
         false ->
-            error_logger:error_msg("stream invalid, no Stream ID", []),
+            lager:error("stream invalid, no Stream ID", []),
             gen_tcp:close(Data#data.socket),
             {next_state, retrying, Data, [{next_event, cast, connect}]}
     end;
@@ -264,7 +263,7 @@ handle_event(info, {tcp_closed, _Socket}, _State, #data{stream = Stream} = Data)
 handle_event(info, {tcp_error, _Socket, Reason}, _State, #data{stream = Stream} = Data) ->
     snatch:disconnected(?MODULE),
     close_stream(Stream),
-    error_logger:error_msg("tcp closed error: ~p~n", [Reason]),
+    lager:error("tcp closed error: ~p", [Reason]),
     {next_state, retrying, Data, [{next_event, cast, connect}]};
 handle_event(info, {xmlstreamstart, _Name, _Attribs} = Packet, _State, Data) ->
     {keep_state, Data, [{next_event, cast, {received, Packet}}]};

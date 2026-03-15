@@ -46,11 +46,11 @@ init(#{jid := JID, host := Host} = Opts) ->
                     create_bind_queues(#state{jid = JID, channel = Channel,
                                               connection = Connection});
                 _E ->
-                    error_logger:error_msg("Could Not Open RabbitMQ Channel: ~p~n", [_E]),
+                    lager:error("Could Not Open RabbitMQ Channel: ~p", [_E]),
                     #state{}
             end;            
         _E -> 
-            error_logger:error_msg("Could Not Start RabbitMQ Connection: ~p~n", [_E]),
+            lager:error("Could Not Start RabbitMQ Connection: ~p", [_E]),
             #state{}
     end,    
     {ok, State}.

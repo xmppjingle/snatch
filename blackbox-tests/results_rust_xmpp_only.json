@@ -1,0 +1,41 @@
+[
+  {
+    "test": "xmpp_message_latency",
+    "sut": "rust",
+    "transport": "xmpp",
+    "messages_sent": 1000,
+    "messages_received": 478,
+    "throughput_msg_s": 23.8,
+    "avg_ms": 4769.964,
+    "p50_ms": 198.83,
+    "p95_ms": 18624.179,
+    "p99_ms": 18624.21,
+    "errors": 522
+  },
+  {
+    "test": "xmpp_throughput_burst",
+    "sut": "rust",
+    "transport": "xmpp",
+    "messages_sent": 1000,
+    "messages_received": 483,
+    "throughput_msg_s": 24.0,
+    "avg_ms": 5680.42,
+    "p50_ms": 23.057,
+    "p95_ms": 17976.327,
+    "p99_ms": 17977.324,
+    "errors": 517
+  },
+  {
+    "test": "xmpp_iq_roundtrip",
+    "sut": "rust",
+    "transport": "xmpp",
+    "messages_sent": 200,
+    "messages_received": 200,
+    "throughput_msg_s": 22466.9,
+    "avg_ms": 6.637,
+    "p50_ms": 6.713,
+    "p95_ms": 7.849,
+    "p99_ms": 7.885,
+    "errors": 0
+  }
+]
