@@ -75,11 +75,13 @@ callback_mode() -> handle_event_function.
 %% API
 
 select_host(Name, Default) ->
-    case inet_res:getbyname("_xmpp-client._tcp." ++ Name, srv) of
+    try inet_res:getbyname("_xmpp-client._tcp." ++ Name, srv) of
         {ok, {_, _, _, _, _, Addresses}} ->
             Hosts = [X || {_, _, _, X} <- Addresses],
             lists:nth(rand:uniform(length(Hosts)),Hosts);
         _ -> Default
+    catch
+        _:_ -> Default
     end.
 
 connect() -> 
